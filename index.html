@@ -4,38 +4,34 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Barcode Scanner CSV</title>
-<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
-body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:0;padding:16px;background:#f2f2f7}
-.card{background:#fff;padding:16px;border-radius:12px;margin-bottom:16px}
-button{width:100%;padding:14px;margin-top:8px;border:none;border-radius:10px;font-size:16px}
-.start{background:#007aff;color:#fff}.export{background:#34c759;color:#fff}.clear{background:#ff3b30;color:#fff}
-#reader{width:100%}.scan{padding:6px;border-bottom:1px solid #eee;word-break:break-all}
+body{font-family:-apple-system,sans-serif;background:#f2f2f7;padding:16px;margin:0}
+.card{background:#fff;border-radius:12px;padding:16px;margin-bottom:16px}
+button{width:100%;padding:14px;margin:6px 0;font-size:16px}
+#log{white-space:pre-wrap;font-family:monospace;background:#111;color:#0f0;padding:10px;border-radius:8px;max-height:240px;overflow:auto}
+.scan{padding:4px;border-bottom:1px solid #ddd}
 </style>
 </head>
 <body>
 <div class="card">
 <h2>Barcode Scanner</h2>
+<button onclick="testLibrary()">Test Library</button>
+<button onclick="testCamera()">Test Camera</button>
+<button onclick="startScanner()">Start Scanner</button>
+<button onclick="exportCsv()">Export CSV</button>
 <div id="reader"></div>
-<button class="start" onclick="startScanning()">Start Scanner</button>
-<button class="export" onclick="exportCSV()">Export CSV</button>
-<button class="clear" onclick="clearScans()">Clear Scans</button>
-<p>Status: <span id="status">Ready</span></p>
-<p>Count: <span id="count">0</span></p>
 </div>
-<div class="card"><div id="scanList"></div></div>
+<div class="card"><b>Count:</b> <span id="count">0</span><div id="scans"></div></div>
+<div class="card"><div id="log"></div></div>
 <script>
-const KEY='barcode_scans';
-let scans=JSON.parse(localStorage.getItem(KEY)||'[]');
-let scanner=null,last='',lastTime=0;
-function save(){localStorage.setItem(KEY,JSON.stringify(scans));}
-function render(){document.getElementById('count').textContent=scans.length;document.getElementById('scanList').innerHTML=scans.slice().reverse().map(x=>'<div class="scan">'+x+'</div>').join('');}
-render();
-function addScan(code){const now=Date.now();if(code===last&&now-lastTime<1500)return;last=code;lastTime=now;scans.push(code);save();render();document.getElementById('status').textContent=code;if(navigator.vibrate)navigator.vibrate(100);}
-async function startScanning(){if(scanner)return;scanner=new Html5Qrcode('reader');try{const cams=await Html5Qrcode.getCameras();await scanner.start(cams[cams.length-1].id,{fps:10,qrbox:250},txt=>addScan(txt));document.getElementById('status').textContent='Scanner running';}catch(e){document.getElementById('status').textContent='Error: '+e.message;}}
-function exportCSV(){let csv='Barcode
-';scans.forEach(s=>csv+='"'+s.replaceAll('"','""')+'"
-');const blob=new Blob([csv],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='barcodes.csv';a.click();}
-function clearScans(){scans=[];save();render();document.getElementById('status').textContent='Cleared';}
+let scans=[];
+function log(m){document.getElementById('log').textContent+=m+'\n';}
+log('Page loaded');
+function testLibrary(){log(typeof Html5Qrcode==='undefined'?'FAILED: Library not loaded':'SUCCESS: Library loaded');}
+async function testCamera(){try{const s=await navigator.mediaDevices.getUserMedia({video:true});log('SUCCESS: Camera OK');s.getTracks().forEach(t=>t.stop());}catch(e){log('CAMERA ERROR: '+e.message);}}
+async function startScanner(){try{const cameras=await Html5Qrcode.getCameras();log('Cameras: '+cameras.length);const scanner=new Html5Qrcode('reader');await scanner.start(cameras[cameras.length-1].id,{fps:10},txt=>{scans.push(txt);document.getElementById('count').textContent=scans.length;const d=document.createElement('div');d.className='scan';d.textContent=txt;document.getElementById('scans').prepend(d);});log('Scanner running');}catch(e){log('START ERROR: '+e.message);}}
+function exportCsv(){let csv='Barcode\n';scans.forEach(s=>csv+='"'+s.replaceAll('"','""')+'"\n');const blob=new Blob([csv],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='barcodes.csv';a.click();}
 </script>
-</body></html>
+</body>
+</html>
