@@ -7,7 +7,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0b1220">
 <title>Barcode Scanner</title>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js"></script>
 <style>
   :root {
     color-scheme: dark;
@@ -49,6 +50,29 @@
     backdrop-filter: saturate(180%) blur(14px);
     border-bottom: 1px solid var(--border);
     padding: calc(env(safe-area-inset-top) + 10px) 12px 12px;
+  }
+
+  .toolbar-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .version {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 8px;
+  }
+
+  .app-title {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
   }
 
   .toolbar-row {
@@ -125,6 +149,10 @@
     background: var(--success);
   }
 
+  .button.ocr {
+    background: #7c3aed;
+  }
+
   .toolbar-buttons.two {
     grid-template-columns: 1fr 1fr;
   }
@@ -163,15 +191,10 @@
     margin-bottom: 14px;
   }
 
-  #reader {
+  #camera {
     width: 100%;
     min-height: 300px;
     background: black;
-  }
-
-  #reader video {
-    width: 100% !important;
-    height: auto !important;
     display: block;
     object-fit: cover;
   }
@@ -216,6 +239,49 @@
     color: var(--muted);
     font-size: 13px;
     line-height: 1.4;
+  }
+
+  .manual-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+
+  .manual-title {
+    margin: 0 0 10px;
+    font-size: 14px;
+    font-weight: 800;
+  }
+
+  .manual-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .manual-input {
+    flex: 1;
+    min-width: 0;
+    min-height: 52px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: #0e1626;
+    color: var(--text);
+    font-size: 17px;
+    padding: 0 14px;
+  }
+
+  .manual-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .manual-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 8px;
   }
 
   .section-title {
@@ -289,7 +355,7 @@
       grid-template-columns: 1fr 1fr;
     }
 
-    #reader {
+    #camera {
       min-height: 420px;
     }
   }
@@ -298,6 +364,12 @@
 <body>
 
 <header class="toolbar">
+  <div class="toolbar-top">
+    <span class="version">v1.3</span>
+    <span class="app-title">Barcode Scanner</span>
+    <span></span>
+  </div>
+
   <div class="toolbar-row">
     <div class="counter">
       <span class="counter-value" id="scanCount">0</span>
@@ -316,14 +388,47 @@
 
 <main>
   <section class="camera-card">
-    <div id="reader"></div>
+    <video id="camera" playsinline muted autoplay></video>
     <div class="camera-overlay" id="cameraOverlay">Camera preview will appear here</div>
     <div class="scan-flash" id="scanFlash"></div>
   </section>
 
   <div class="hint">
-    Hold the barcode roughly 10–25 cm away, keep it flat and well lit, and avoid glare. The scanner examines the full camera image. For long retail barcodes, rotate the phone sideways if needed.
+    Hold the barcode roughly 10–25 cm away, keep it flat and well lit, and avoid glare. For damaged labels, try changing the angle or use Manual Entry. OCR reads the printed digits and places them in the field for checking before you add them.
   </div>
+
+  <section class="manual-card">
+    <h2 class="manual-title">Manual Entry / OCR</h2>
+
+    <div class="manual-row">
+      <input
+        class="manual-input"
+        id="manualInput"
+        type="text"
+        inputmode="numeric"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false"
+        placeholder="Enter or OCR a barcode"
+        aria-label="Enter or OCR a barcode"
+      >
+      <button class="button success" id="addManualButton" type="button">Add</button>
+    </div>
+
+    <div class="manual-actions">
+      <button class="button ocr" id="ocrButton" type="button">OCR Barcode</button>
+      <button class="button secondary" id="clearManualButton" type="button">Clear Field</button>
+    </div>
+
+    <input
+      id="ocrFileInput"
+      type="file"
+      accept="image/*"
+      capture="environment"
+      style="display: none;"
+    >
+  </section>
 
   <section>
     <div class="section-title">
@@ -340,11 +445,15 @@
 (function () {
   "use strict";
 
+  var APP_VERSION = "v1.3";
   var STORAGE_KEY = "barcode-scanner-scans-v1";
   var DUPLICATE_SUPPRESSION_MS = 1500;
 
-  var scanner = null;
+  var codeReader = null;
+  var streamControls = null;
   var isCameraRunning = false;
+  var isOcrRunning = false;
+  var ocrWorker = null;
   var audioContext = null;
   var lastScan = {
     text: null,
@@ -360,7 +469,12 @@
   var emptyStateElement = document.getElementById("emptyState");
   var cameraOverlayElement = document.getElementById("cameraOverlay");
   var scanFlashElement = document.getElementById("scanFlash");
-  var readerElement = document.getElementById("reader");
+  var cameraElement = document.getElementById("camera");
+  var manualInputElement = document.getElementById("manualInput");
+  var addManualButton = document.getElementById("addManualButton");
+  var ocrButton = document.getElementById("ocrButton");
+  var clearManualButton = document.getElementById("clearManualButton");
+  var ocrFileInput = document.getElementById("ocrFileInput");
 
   var scans = loadScans();
 
@@ -522,20 +636,26 @@
   }
 
   function addScan(barcode) {
+    var cleanedBarcode = String(barcode || "").trim();
+
+    if (!cleanedBarcode) {
+      return false;
+    }
+
     var now = Date.now();
 
     if (
-      lastScan.text === barcode &&
+      lastScan.text === cleanedBarcode &&
       now - lastScan.timestamp < DUPLICATE_SUPPRESSION_MS
     ) {
-      return;
+      return false;
     }
 
-    lastScan.text = barcode;
+    lastScan.text = cleanedBarcode;
     lastScan.timestamp = now;
 
     scans.unshift({
-      barcode: barcode,
+      barcode: cleanedBarcode,
       timestamp: now
     });
 
@@ -544,19 +664,27 @@
     playBeep();
     vibrate();
     flashSuccess();
-    setStatus("Scanned: " + barcode, "success");
+    setStatus("Added: " + cleanedBarcode, "success");
+
+    return true;
   }
 
-  function onScanSuccess(decodedText) {
-    if (typeof decodedText !== "string" || decodedText.length === 0) {
+  function onDecodeResult(result) {
+    if (!result || typeof result.getText !== "function") {
       return;
     }
 
-    addScan(decodedText);
+    var text = result.getText();
+
+    if (typeof text !== "string" || text.length === 0) {
+      return;
+    }
+
+    addScan(text);
   }
 
-  function onScanFailure() {
-    // Continuous scanning commonly reports frames where no barcode was found.
+  function onDecodeError() {
+    // ZXing calls this for every video frame in which no code is found.
   }
 
   function showCameraOverlay(message) {
@@ -574,13 +702,30 @@
     startButton.classList.toggle("success", running);
   }
 
+  function createReader() {
+    var hints = new Map();
+    var formats = [
+      ZXing.BarcodeFormat.CODE_128,
+      ZXing.BarcodeFormat.EAN_13,
+      ZXing.BarcodeFormat.EAN_8,
+      ZXing.BarcodeFormat.UPC_A,
+      ZXing.BarcodeFormat.UPC_E,
+      ZXing.BarcodeFormat.CODE_39,
+      ZXing.BarcodeFormat.QR_CODE
+    ];
+
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+
+    return new ZXing.BrowserMultiFormatReader(hints, 100);
+  }
+
   function startCamera() {
     if (isCameraRunning) {
       return;
     }
 
-    if (typeof Html5Qrcode === "undefined" || typeof Html5QrcodeSupportedFormats === "undefined") {
-      setStatus("Library failed to load. Check your internet connection and reload the page.", "error");
+    if (typeof ZXing === "undefined") {
+      setStatus("Barcode library failed to load. Check your internet connection and reload the page.", "error");
       return;
     }
 
@@ -594,45 +739,45 @@
     showCameraOverlay("Requesting camera permission…");
 
     try {
-      scanner = new Html5Qrcode("reader", {
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.CODE_128,
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.UPC_E,
-          Html5QrcodeSupportedFormats.CODE_39,
-          Html5QrcodeSupportedFormats.QR_CODE
-        ],
-        useBarCodeDetectorIfSupported: false,
-        verbose: false
-      });
+      codeReader = createReader();
     } catch (error) {
-      scanner = null;
+      codeReader = null;
       setStatus("Scanner failed to start: " + (error && error.message ? error.message : "Unknown error"), "error");
       showCameraOverlay("Scanner failed to start");
       return;
     }
 
-    var cameraConfig = {
-      facingMode: "environment"
+    var constraints = {
+      video: {
+        facingMode: "environment",
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      },
+      audio: false
     };
 
-    var scanConfig = {
-      fps: 15,
-      disableFlip: false
-    };
+    codeReader.decodeFromConstraints(
+      constraints,
+      cameraElement,
+      function (result, error, controls) {
+        if (controls) {
+          streamControls = controls;
+        }
 
-    scanner.start(
-      cameraConfig,
-      scanConfig,
-      onScanSuccess,
-      onScanFailure
+        if (result) {
+          onDecodeResult(result);
+          return;
+        }
+
+        if (error) {
+          onDecodeError(error);
+        }
+      }
     ).then(function () {
       isCameraRunning = true;
       hideCameraOverlay();
       setButtonsForRunningState(true);
-      setStatus("Camera running. Full-frame scanning active.");
+      setStatus("Camera running. Point it at a barcode.");
     }).catch(function (error) {
       isCameraRunning = false;
       setButtonsForRunningState(false);
@@ -653,45 +798,54 @@
         lowerMessage.indexOf("no cameras") !== -1
       ) {
         setStatus("No camera available.", "error");
+      } else if (
+        lowerMessage.indexOf("overconstrained") !== -1 ||
+        lowerMessage.indexOf("constraint") !== -1
+      ) {
+        setStatus("Camera could not start with high-resolution settings. Try reloading or use a different camera.", "error");
       } else {
         setStatus("Scanner failed to start: " + message, "error");
       }
 
-      if (scanner) {
+      if (codeReader) {
         try {
-          scanner.clear();
-        } catch (clearError) {
+          codeReader.reset();
+        } catch (resetError) {
           // Ignore cleanup errors.
         }
 
-        scanner = null;
+        codeReader = null;
       }
+
+      streamControls = null;
     });
   }
 
   function stopCameraIfRunning() {
-    if (!scanner || !isCameraRunning) {
+    if (!codeReader || !isCameraRunning) {
       return;
     }
 
-    scanner.stop().then(function () {
-      isCameraRunning = false;
-      setButtonsForRunningState(false);
-      showCameraOverlay("Camera preview will appear here");
-
-      try {
-        scanner.clear();
-      } catch (error) {
-        // Ignore cleanup errors.
+    try {
+      if (streamControls && typeof streamControls.stop === "function") {
+        streamControls.stop();
       }
+    } catch (error) {
+      // Continue with reader cleanup.
+    }
 
-      scanner = null;
-      setStatus("Camera stopped.");
-    }).catch(function (error) {
-      isCameraRunning = false;
-      setButtonsForRunningState(false);
-      setStatus("Camera stopped with an error: " + (error && error.message ? error.message : "Unknown error"), "error");
-    });
+    try {
+      codeReader.reset();
+    } catch (error) {
+      // Ignore cleanup errors.
+    }
+
+    isCameraRunning = false;
+    streamControls = null;
+    codeReader = null;
+    setButtonsForRunningState(false);
+    showCameraOverlay("Camera preview will appear here");
+    setStatus("Camera stopped.");
   }
 
   function exportCsv() {
@@ -700,7 +854,7 @@
       return;
     }
 
-    var csvContent = "Barcode\n";
+    var csvContent = "";
 
     scans.forEach(function (scan) {
       csvContent += scan.barcode + "\n";
@@ -745,14 +899,150 @@
     setStatus("All scans cleared.");
   }
 
+  function addManualBarcode() {
+    var value = manualInputElement.value.trim();
+
+    if (!value) {
+      setStatus("Enter a barcode before pressing Add.", "error");
+      return;
+    }
+
+    var added = addScan(value);
+
+    if (added) {
+      manualInputElement.value = "";
+      manualInputElement.blur();
+    } else {
+      setStatus("That barcode was just added. Wait about 1.5 seconds to add it again.", "error");
+    }
+  }
+
+  function extractBarcodeCandidate(text) {
+    if (!text) {
+      return null;
+    }
+
+    var digitGroups = text.match(/\d{6,}/g);
+
+    if (!digitGroups || digitGroups.length === 0) {
+      return null;
+    }
+
+    var best = digitGroups[0];
+
+    digitGroups.forEach(function (group) {
+      if (group.length > best.length) {
+        best = group;
+      }
+    });
+
+    return best;
+  }
+
+  async function getOcrWorker() {
+    if (ocrWorker) {
+      return ocrWorker;
+    }
+
+    if (typeof Tesseract === "undefined" || typeof Tesseract.createWorker !== "function") {
+      throw new Error("OCR library failed to load.");
+    }
+
+    setStatus("Loading OCR engine…");
+
+    ocrWorker = await Tesseract.createWorker("eng", 1);
+
+    await ocrWorker.setParameters({
+      tessedit_char_whitelist: "0123456789"
+    });
+
+    return ocrWorker;
+  }
+
+  async function runOcr(file) {
+    if (isOcrRunning) {
+      return;
+    }
+
+    if (!file) {
+      setStatus("No image selected for OCR.", "error");
+      return;
+    }
+
+    if (typeof Tesseract === "undefined" || typeof Tesseract.createWorker !== "function") {
+      setStatus("OCR library failed to load. Check your internet connection and reload the page.", "error");
+      return;
+    }
+
+    isOcrRunning = true;
+    ocrButton.disabled = true;
+    ocrButton.textContent = "Reading…";
+    setStatus("Reading barcode digits…");
+
+    try {
+      var worker = await getOcrWorker();
+      var recognition = await worker.recognize(file);
+      var text = recognition && recognition.data && recognition.data.text ? recognition.data.text : "";
+      var candidate = extractBarcodeCandidate(text);
+
+      if (!candidate) {
+        setStatus("OCR could not find a barcode number. Try a closer, straight-on photo.", "error");
+        return;
+      }
+
+      manualInputElement.value = candidate;
+      manualInputElement.focus();
+      setStatus("OCR found: " + candidate + ". Check it, then press Add.", "success");
+    } catch (error) {
+      var message = error && error.message ? error.message : String(error);
+      setStatus("OCR failed: " + message, "error");
+    } finally {
+      isOcrRunning = false;
+      ocrButton.disabled = false;
+      ocrButton.textContent = "OCR Barcode";
+      ocrFileInput.value = "";
+    }
+  }
+
   startButton.addEventListener("click", startCamera);
   exportButton.addEventListener("click", exportCsv);
   clearButton.addEventListener("click", clearScans);
+  addManualButton.addEventListener("click", addManualBarcode);
+
+  ocrButton.addEventListener("click", function () {
+    if (isOcrRunning) {
+      return;
+    }
+
+    ocrFileInput.click();
+  });
+
+  ocrFileInput.addEventListener("change", function () {
+    var file = ocrFileInput.files && ocrFileInput.files[0];
+
+    if (file) {
+      runOcr(file);
+    }
+  });
+
+  clearManualButton.addEventListener("click", function () {
+    manualInputElement.value = "";
+    manualInputElement.focus();
+    setStatus("Manual entry field cleared.");
+  });
+
+  manualInputElement.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addManualBarcode();
+    }
+  });
+
   window.addEventListener("pagehide", stopCameraIfRunning);
   window.addEventListener("beforeunload", stopCameraIfRunning);
 
-  if (typeof Html5Qrcode === "undefined" || typeof Html5QrcodeSupportedFormats === "undefined") {
-    setStatus("Library failed to load. Check your internet connection and reload the page.", "error");
+  if (typeof ZXing === "undefined") {
+    setStatus("Barcode library failed to load. Check your internet connection and reload the page.", "error");
     showCameraOverlay("Library failed to load");
   } else {
     updateUi();
