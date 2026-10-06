@@ -1,3 +1,8 @@
+That usually means the browser hit a JavaScript error before it could initialise the page. The most likely culprit in v0.12 was the crop modal/pointer-event code or a truncated copy/paste. I’ve rebuilt it as **v0.13** with the same features, but with simpler, more defensive crop code and an on-screen error message if anything fails.
+
+Please replace the entire `index.html` with this exact file:
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,337 +13,1565 @@
 <meta name="theme-color" content="#0b1220">
 <title>Barcode Scanner</title>
 <style>
-  :root {
-    color-scheme: dark;
-    --bg: #0b1220;
-    --panel: #121a2b;
-    --panel-2: #182238;
-    --text: #eaf0ff;
-    --muted: #9aa8c7;
-    --accent: #2f81f7;
-    --success: #22c55e;
-    --danger: #ef4444;
-    --warning: #f59e0b;
-    --border: #26314a;
+:root{color-scheme:dark;--bg:#0b1220;--panel:#121a2b;--panel2:#182238;--text:#eaf0ff;--muted:#9aa8c7;--accent:#2f81f7;--success:#22c55e;--danger:#ef4444;--warning:#f59e0b;--border:#26314a}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+html,body{margin:0;padding:0;min-height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+input{-webkit-user-select:auto;user-select:auto}
+body{padding-bottom:env(safe-area-inset-bottom)}
+.toolbar{position:sticky;top:0;z-index:50;background:rgba(11,18,32,.94);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);padding:calc(env(safe-area-inset-top) + 8px) 10px 10px}
+.toolbar-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.version{font-size:10px;font-weight:700;color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:2px 7px}
+.app-title{font-size:13px;font-weight:800}
+.metadata-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px}
+.metadata-input{min-width:0;min-height:40px;border:1px solid var(--border);border-radius:12px;background:#0e1626;color:var(--text);font-size:14px;padding:0 10px}
+.metadata-input:focus{outline:none;border-color:var(--accent)}
+.toolbar-row{display:flex;align-items:center;gap:6px}
+.counter{min-width:58px;text-align:center;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:5px 6px}
+.counter-value{display:block;font-size:20px;font-weight:800;line-height:1}
+.counter-label{display:block;margin-top:2px;font-size:8px;font-weight:700;text-transform:uppercase;color:var(--muted)}
+.toolbar-buttons{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;flex:1}
+.button{appearance:none;border:0;border-radius:12px;min-height:44px;padding:8px;font-size:13px;font-weight:700;color:#fff;background:var(--accent);cursor:pointer;white-space:nowrap}
+.button:active{transform:scale(.98)}
+.button:disabled{opacity:.45;cursor:not-allowed}
+.secondary{background:#334155}
+.danger{background:#7f1d1d}
+.success{background:var(--success)}
+.ocr{background:#7c3aed}
+.undo{background:#475569}
+.status{margin-top:7px;min-height:18px;font-size:12px;color:var(--muted);text-align:center}
+.status.error{color:#fca5a5;font-weight:600}
+.status.success{color:#86efac;font-weight:700}
+.status.warning{color:#fcd34d;font-weight:700}
+main{padding:10px;max-width:720px;margin:0 auto}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:8px;margin-bottom:10px}
+.manual-row{display:flex;align-items:center;gap:6px}
+.manual-input{flex:1;min-width:0;min-height:44px;border:1px solid var(--border);border-radius:12px;background:#0e1626;color:var(--text);font-size:16px;padding:0 10px}
+.manual-input:focus{outline:none;border-color:var(--accent)}
+.ocr-choices{display:none;flex-wrap:wrap;gap:6px;margin-top:8px}
+.ocr-choices.visible{display:flex}
+.ocr-choice{appearance:none;border:1px solid #7c3aed;background:#2e1065;color:#fff;border-radius:999px;min-height:36px;padding:6px 12px;font-size:14px;font-weight:800;font-family:ui-monospace,Menlo,monospace;cursor:pointer}
+.camera-card{position:relative;background:#000;border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:10px}
+#camera{width:100%;height:34vh;min-height:210px;max-height:300px;background:#000;display:block;object-fit:cover}
+#freezeFrame{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;pointer-events:none}
+#freezeFrame.visible{display:block}
+.camera-overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.72);text-align:center;padding:16px;font-size:15px;font-weight:600}
+.camera-overlay.visible{display:flex}
+.scan-flash{position:absolute;inset:0;pointer-events:none;background:rgba(34,197,94,.32);border:4px solid var(--success);opacity:0;transition:opacity .12s}
+.scan-flash.active{opacity:1}
+.scan-flash.bad{background:rgba(239,68,68,.32);border-color:var(--danger)}
+.scan-guide{position:absolute;inset:0;pointer-events:none;display:none}
+.scan-guide.visible{display:block}
+.scan-guide::before{content:"";position:absolute;left:8%;right:8%;top:50%;height:2px;background:rgba(34,197,94,.75)}
+.scan-guide::after{content:"";position:absolute;top:18%;bottom:18%;left:50%;width:2px;background:rgba(34,197,94,.35)}
+.side-controls{position:absolute;top:10px;right:10px;z-index:10;display:flex;flex-direction:column;gap:6px}
+.camera-control{appearance:none;border:1px solid rgba(255,255,255,.18);background:rgba(15,23,42,.78);color:#fff;border-radius:12px;min-width:46px;min-height:38px;padding:5px 7px;font-size:11px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.camera-control:disabled{opacity:.4;cursor:not-allowed}
+.camera-control.torch-on{background:rgba(245,158,11,.9);color:#1f1300;border-color:rgba(245,158,11,.9)}
+.camera-control.active{border-color:var(--accent);background:rgba(47,129,247,.75)}
+.zoom-value{font-size:10px;color:var(--muted);text-align:center;min-height:12px}
+.hint{margin:-4px 0 10px;padding:8px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;color:var(--muted);font-size:11px;line-height:1.35}
+.search-row{display:flex;gap:6px;margin-bottom:8px}
+.search-input{flex:1;min-width:0;min-height:40px;border:1px solid var(--border);border-radius:12px;background:#0e1626;color:var(--text);font-size:15px;padding:0 10px}
+.search-input:focus{outline:none;border-color:var(--accent)}
+.section-title{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 6px;font-size:13px;font-weight:800}
+.scan-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.scan-item{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 10px;display:flex;align-items:center;gap:8px}
+.scan-details{flex:1;min-width:0}
+.scan-code{font-family:ui-monospace,Menlo,monospace;font-size:15px;font-weight:700;word-break:break-all}
+.scan-time{color:var(--muted);font-size:10px}
+.scan-actions{display:flex;gap:5px}
+.icon-button{appearance:none;border:1px solid var(--border);background:var(--panel2);color:var(--text);border-radius:10px;width:36px;height:36px;font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.icon-button.delete{color:#fca5a5;border-color:#7f1d1d;background:#2a1215}
+.icon-button.save{color:#86efac;border-color:#14532d;background:#0f2417}
+.edit-input{flex:1;min-width:0;min-height:36px;border:1px solid var(--accent);border-radius:10px;background:#0e1626;color:var(--text);font-size:15px;font-family:ui-monospace,Menlo,monospace;font-weight:700;padding:0 8px}
+.empty{background:var(--panel);border:1px dashed var(--border);border-radius:12px;padding:16px;text-align:center;color:var(--muted);font-size:13px}
+.modal{position:fixed;inset:0;z-index:100;display:none;background:rgba(0,0,0,.92);padding:12px;padding-top:calc(env(safe-area-inset-top) + 12px)}
+.modal.visible{display:flex;flex-direction:column}
+.modal-title{margin:0 0 8px;font-size:15px;font-weight:800;text-align:center}
+.crop-stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:12px;background:#000;touch-action:none}
+#cropImage{max-width:100%;max-height:100%;display:block;pointer-events:none}
+#cropSelection{position:absolute;border:2px solid var(--success);background:rgba(34,197,94,.16);display:none;pointer-events:none}
+.modal-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;padding-bottom:env(safe-area-inset-bottom)}
+@media(min-width:640px){#camera{height:42vh;max-height:420px}}
+</style>
+</head>
+<body>
+
+<header class="toolbar">
+  <div class="toolbar-top">
+    <span class="version">v0.13</span>
+    <span class="app-title">Barcode Scanner</span>
+    <span></span>
+  </div>
+
+  <div class="metadata-row">
+    <input class="metadata-input" id="venueInput" type="text" placeholder="Venue" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" aria-label="Venue">
+    <input class="metadata-input" id="transferInput" type="text" placeholder="Transfer number" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" aria-label="Transfer number">
+  </div>
+
+  <div class="toolbar-row">
+    <div class="counter">
+      <span class="counter-value" id="scanCount">0</span>
+      <span class="counter-label">Scans</span>
+    </div>
+
+    <div class="toolbar-buttons">
+      <button class="button" id="startButton" type="button">Start</button>
+      <button class="button secondary" id="exportButton" type="button" disabled>Share</button>
+      <button class="button danger" id="clearButton" type="button" disabled>Clear</button>
+    </div>
+  </div>
+
+  <div class="status" id="status">Loading…</div>
+</header>
+
+<main>
+  <section class="card">
+    <div class="manual-row">
+      <input class="manual-input" id="manualInput" type="text" placeholder="M12345 / R12345678" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" aria-label="Enter or OCR an asset ID">
+      <button class="button success" id="addManualButton" type="button">Add</button>
+      <button class="button ocr" id="ocrButton" type="button">OCR</button>
+    </div>
+
+    <div class="ocr-choices" id="ocrChoices"></div>
+
+    <input id="ocrFileInput" type="file" accept="image/*" capture="environment" style="display:none">
+  </section>
+
+  <section class="camera-card" id="cameraCard">
+    <video id="camera" playsinline muted autoplay></video>
+    <canvas id="freezeFrame"></canvas>
+    <div class="camera-overlay" id="cameraOverlay">Camera preview will appear here</div>
+    <div class="scan-flash" id="scanFlash"></div>
+    <div class="scan-guide visible" id="scanGuide"></div>
+
+    <div class="side-controls">
+      <button class="camera-control" id="cameraButton" type="button" disabled>CAM</button>
+      <button class="camera-control" id="torchButton" type="button" disabled>⚡</button>
+      <button class="camera-control active" id="guideButton" type="button">⊞</button>
+      <button class="camera-control" id="zoomInButton" type="button" disabled>＋</button>
+      <div class="zoom-value" id="zoomValue"></div>
+      <button class="camera-control" id="zoomOutButton" type="button" disabled>－</button>
+    </div>
+  </section>
+
+  <div class="hint">
+    Use ＋ to zoom toward distant barcodes, ⚡ for flash, CAM to change lens, and ⊞ to toggle the guide. OCR lets you crop around the Asset ID before reading it.
+  </div>
+
+  <section>
+    <div class="section-title">
+      <span>Scanned Barcodes</span>
+      <button class="button undo" id="undoButton" type="button" disabled>Undo</button>
+    </div>
+
+    <div class="search-row">
+      <input class="search-input" id="searchInput" type="search" placeholder="Search scanned Asset IDs" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" aria-label="Search scanned Asset IDs">
+    </div>
+
+    <ul class="scan-list" id="scanList"></ul>
+    <div class="empty" id="emptyState">No barcodes scanned yet.</div>
+  </section>
+</main>
+
+<div class="modal" id="cropModal">
+  <h2 class="modal-title">Drag around the Asset ID</h2>
+
+  <div class="crop-stage" id="cropStage">
+    <img id="cropImage" alt="Selected barcode photo">
+    <div id="cropSelection"></div>
+  </div>
+
+  <div class="modal-actions">
+    <button class="button secondary" id="cropCancelButton" type="button">Cancel</button>
+    <button class="button success" id="cropReadButton" type="button">Crop &amp; Read</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var APP_VERSION = "v0.13";
+  var STORAGE_KEY = "barcode-scanner-scans-v1";
+  var METADATA_KEY = "barcode-scanner-metadata-v1";
+  var DUP_MS = 1500;
+
+  var reader = null;
+  var controls = null;
+  var track = null;
+  var devices = [];
+  var deviceId = null;
+  var cameraOn = false;
+  var torchOn = false;
+  var ocrBusy = false;
+  var ocrWorker = null;
+  var audio = null;
+  var zoom = 1;
+  var zoomCaps = null;
+  var lastScan = { text: null, time: 0 };
+  var lastGoodScan = 0;
+  var unsaved = false;
+  var lastAction = null;
+  var editing = null;
+  var reminder = null;
+
+  var cropImage = null;
+  var cropStart = null;
+  var cropRect = null;
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  var startButton = $("startButton");
+  var exportButton = $("exportButton");
+  var clearButton = $("clearButton");
+  var undoButton = $("undoButton");
+  var statusEl = $("status");
+  var countEl = $("scanCount");
+  var listEl = $("scanList");
+  var emptyEl = $("emptyState");
+  var overlayEl = $("cameraOverlay");
+  var flashEl = $("scanFlash");
+  var guideEl = $("scanGuide");
+  var freezeEl = $("freezeFrame");
+  var videoEl = $("camera");
+  var cameraCard = $("cameraCard");
+  var cameraButton = $("cameraButton");
+  var torchButton = $("torchButton");
+  var guideButton = $("guideButton");
+  var zoomInButton = $("zoomInButton");
+  var zoomOutButton = $("zoomOutButton");
+  var zoomValue = $("zoomValue");
+  var venueEl = $("venueInput");
+  var transferEl = $("transferInput");
+  var manualEl = $("manualInput");
+  var addButton = $("addManualButton");
+  var ocrButton = $("ocrButton");
+  var fileInput = $("ocrFileInput");
+  var choicesEl = $("ocrChoices");
+  var searchEl = $("searchInput");
+  var cropModal = $("cropModal");
+  var cropStage = $("cropStage");
+  var cropImg = $("cropImage");
+  var cropBox = $("cropSelection");
+  var cropCancel = $("cropCancelButton");
+  var cropRead = $("cropReadButton");
+
+  var scans = loadScans();
+  var meta = loadMetadata();
+
+  window.onerror = function (message) {
+    setStatus("App error: " + message, "error");
+  };
+
+  function loadScans() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return [];
+
+      var parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+
+      return parsed.filter(function (item) {
+        return item && typeof item.barcode === "string" && typeof item.timestamp === "number";
+      });
+    } catch (error) {
+      return [];
+    }
   }
 
-  * {
-    box-sizing: border-box;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
+  function loadMetadata() {
+    try {
+      var raw = localStorage.getItem(METADATA_KEY);
+      if (!raw) return { venue: "", transfer: "" };
+
+      var parsed = JSON.parse(raw);
+
+      return {
+        venue: typeof parsed.venue === "string" ? parsed.venue : "",
+        transfer: typeof parsed.transfer === "string" ? parsed.transfer : ""
+      };
+    } catch (error) {
+      return { venue: "", transfer: "" };
+    }
   }
 
-  html, body {
-    margin: 0;
-    padding: 0;
-    min-height: 100%;
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Arial, sans-serif;
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-    user-select: none;
+  function saveMetadata() {
+    try {
+      localStorage.setItem(METADATA_KEY, JSON.stringify(meta));
+    } catch (error) {
+      // Non-critical.
+    }
   }
 
-  input {
-    -webkit-user-select: auto;
-    user-select: auto;
+  function saveScans() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(scans));
+      unsaved = scans.length > 0;
+    } catch (error) {
+      setStatus("Could not save scans locally.", "error");
+    }
   }
 
-  body {
-    padding-bottom: env(safe-area-inset-bottom);
+  function setStatus(message, type) {
+    statusEl.textContent = message;
+    statusEl.className = "status";
+
+    if (type) {
+      statusEl.classList.add(type);
+    }
   }
 
-  .toolbar {
-    position: sticky;
-    top: 0;
-    z-index: 50;
-    background: rgba(11, 18, 32, 0.94);
-    -webkit-backdrop-filter: saturate(180%) blur(14px);
-    backdrop-filter: saturate(180%) blur(14px);
-    border-bottom: 1px solid var(--border);
-    padding: calc(env(safe-area-inset-top) + 8px) 10px 10px;
+  function timeText(timestamp) {
+    var date = new Date(timestamp);
+    var h = String(date.getHours()).padStart(2, "0");
+    var m = String(date.getMinutes()).padStart(2, "0");
+    var s = String(date.getSeconds()).padStart(2, "0");
+    return h + ":" + m + ":" + s;
   }
 
-  .toolbar-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 6px;
+  function exportTimestamp(date) {
+    var y = date.getFullYear();
+    var m = String(date.getMonth() + 1).padStart(2, "0");
+    var d = String(date.getDate()).padStart(2, "0");
+    var h = String(date.getHours()).padStart(2, "0");
+    var mi = String(date.getMinutes()).padStart(2, "0");
+    var s = String(date.getSeconds()).padStart(2, "0");
+
+    return y + "-" + m + "-" + d + "-" + h + mi + s;
   }
 
-  .version {
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--muted);
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 2px 7px;
+  function safeName(value) {
+    return String(value || "")
+      .trim()
+      .replace(/[\\/:*?"<>|]+/g, "-")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
   }
 
-  .app-title {
-    font-size: 13px;
-    font-weight: 800;
+  function exportName() {
+    var venue = safeName(venueEl.value);
+    var transfer = safeName(transferEl.value);
+    var name = "barcodes";
+
+    if (venue) name += "-" + venue;
+    if (transfer) name += "-" + transfer;
+
+    return name + "-" + exportTimestamp(new Date()) + ".csv";
   }
 
-  .metadata-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
-    margin-bottom: 6px;
+  function csvText() {
+    var output = "";
+
+    scans.forEach(function (scan) {
+      output += scan.barcode + "\n";
+    });
+
+    return output;
   }
 
-  .metadata-input {
-    min-width: 0;
-    min-height: 40px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: #0e1626;
-    color: var(--text);
-    font-size: 14px;
-    padding: 0 10px;
+  function findIndex(barcode) {
+    for (var i = 0; i < scans.length; i++) {
+      if (scans[i].barcode === barcode) return i;
+    }
+
+    return -1;
   }
 
-  .metadata-input:focus {
-    outline: none;
-    border-color: var(--accent);
+  function updateUi() {
+    countEl.textContent = String(scans.length);
+    listEl.innerHTML = "";
+    undoButton.disabled = !lastAction;
+
+    if (scans.length === 0) {
+      emptyEl.style.display = "block";
+      emptyEl.textContent = "No barcodes scanned yet.";
+      exportButton.disabled = true;
+      clearButton.disabled = true;
+      return;
+    }
+
+    emptyEl.style.display = "none";
+    exportButton.disabled = false;
+    clearButton.disabled = false;
+
+    var term = searchEl.value.trim().toUpperCase();
+    var shown = 0;
+
+    scans.forEach(function (scan, index) {
+      if (term && scan.barcode.indexOf(term) === -1) return;
+
+      shown++;
+
+      var li = document.createElement("li");
+      li.className = "scan-item";
+
+      if (editing === index) {
+        buildEditor(li, scan, index);
+      } else {
+        buildRow(li, scan, index);
+      }
+
+      listEl.appendChild(li);
+    });
+
+    if (shown === 0) {
+      emptyEl.style.display = "block";
+      emptyEl.textContent = "No scans match the search.";
+    } else {
+      emptyEl.style.display = "none";
+    }
   }
 
-  .toolbar-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  function buildRow(li, scan, index) {
+    var details = document.createElement("div");
+    details.className = "scan-details";
+
+    var code = document.createElement("div");
+    code.className = "scan-code";
+    code.textContent = scan.barcode;
+
+    var time = document.createElement("div");
+    time.className = "scan-time";
+    time.textContent = timeText(scan.timestamp);
+
+    details.appendChild(code);
+    details.appendChild(time);
+
+    var actions = document.createElement("div");
+    actions.className = "scan-actions";
+
+    var edit = document.createElement("button");
+    edit.className = "icon-button";
+    edit.type = "button";
+    edit.textContent = "✎";
+    edit.addEventListener("click", function () {
+      editing = index;
+      updateUi();
+    });
+
+    var remove = document.createElement("button");
+    remove.className = "icon-button delete";
+    remove.type = "button";
+    remove.textContent = "✕";
+    remove.addEventListener("click", function () {
+      removeScan(index);
+    });
+
+    actions.appendChild(edit);
+    actions.appendChild(remove);
+
+    li.appendChild(details);
+    li.appendChild(actions);
   }
 
-  .counter {
-    min-width: 58px;
-    text-align: center;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 5px 6px;
+  function buildEditor(li, scan, index) {
+    var input = document.createElement("input");
+    input.className = "edit-input";
+    input.type = "text";
+    input.value = scan.barcode;
+    input.autocomplete = "off";
+    input.autocorrect = "off";
+    input.autocapitalize = "characters";
+    input.spellcheck = false;
+
+    var actions = document.createElement("div");
+    actions.className = "scan-actions";
+
+    var save = document.createElement("button");
+    save.className = "icon-button save";
+    save.type = "button";
+    save.textContent = "✓";
+    save.addEventListener("click", function () {
+      saveEdit(index, input.value);
+    });
+
+    var cancel = document.createElement("button");
+    cancel.className = "icon-button";
+    cancel.type = "button";
+    cancel.textContent = "✕";
+    cancel.addEventListener("click", function () {
+      editing = null;
+      updateUi();
+    });
+
+    actions.appendChild(save);
+    actions.appendChild(cancel);
+
+    li.appendChild(input);
+    li.appendChild(actions);
+
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        saveEdit(index, input.value);
+      } else if (event.key === "Escape") {
+        editing = null;
+        updateUi();
+      }
+    });
+
+    window.setTimeout(function () {
+      input.focus();
+      input.select();
+    }, 0);
   }
 
-  .counter-value {
-    display: block;
-    font-size: 20px;
-    font-weight: 800;
-    line-height: 1;
+  function saveEdit(index, value) {
+    var clean = String(value || "").trim().toUpperCase();
+
+    if (!clean) {
+      setStatus("Barcode cannot be empty.", "error");
+      return;
+    }
+
+    var duplicate = findIndex(clean);
+
+    if (duplicate !== -1 && duplicate !== index) {
+      setStatus("That barcode already exists.", "error");
+      return;
+    }
+
+    var previous = scans[index].barcode;
+
+    if (previous === clean) {
+      editing = null;
+      updateUi();
+      return;
+    }
+
+    scans[index].barcode = clean;
+    editing = null;
+
+    lastAction = {
+      type: "edit",
+      index: index,
+      previous: previous
+    };
+
+    saveScans();
+    updateUi();
+    setStatus("Updated to " + clean, "success");
   }
 
-  .counter-label {
-    display: block;
-    margin-top: 2px;
-    font-size: 8px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted);
+  function removeScan(index) {
+    if (index < 0 || index >= scans.length) return;
+
+    var barcode = scans[index].barcode;
+
+    if (!window.confirm("Remove " + barcode + "?")) return;
+
+    var removed = scans.splice(index, 1)[0];
+
+    if (editing === index) {
+      editing = null;
+    } else if (editing !== null && editing > index) {
+      editing = editing - 1;
+    }
+
+    lastAction = {
+      type: "delete",
+      index: index,
+      scan: removed
+    };
+
+    saveScans();
+    updateUi();
+    setStatus("Removed " + barcode);
   }
 
-  .toolbar-buttons {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 6px;
-    flex: 1;
+  function undo() {
+    if (!lastAction) return;
+
+    var action = lastAction;
+
+    if (action.type === "add") {
+      var index = findIndex(action.barcode);
+
+      if (index !== -1) scans.splice(index, 1);
+
+      setStatus("Undo: removed " + action.barcode);
+    } else if (action.type === "edit") {
+      if (action.index >= 0 && action.index < scans.length) {
+        scans[action.index].barcode = action.previous;
+      }
+
+      setStatus("Undo: restored " + action.previous);
+    } else if (action.type === "delete") {
+      var insertAt = Math.min(action.index, scans.length);
+      scans.splice(insertAt, 0, action.scan);
+      setStatus("Undo: restored " + action.scan.barcode);
+    }
+
+    lastAction = null;
+    saveScans();
+    updateUi();
   }
 
-  .button {
-    appearance: none;
-    border: 0;
-    border-radius: 12px;
-    min-height: 44px;
-    padding: 8px;
-    font-size: 13px;
-    font-weight: 700;
-    color: white;
-    background: var(--accent);
-    cursor: pointer;
-    white-space: nowrap;
+  function initAudio() {
+    if (audio) {
+      if (audio.state === "suspended") audio.resume();
+      return;
+    }
+
+    var AudioContextClass = window.AudioContext || window.webkitAudioContext;
+
+    if (!AudioContextClass) return;
+
+    try {
+      audio = new AudioContextClass();
+    } catch (error) {
+      audio = null;
+    }
   }
 
-  .button:active {
-    transform: scale(0.98);
+  function tone(freq, at, duration, volume) {
+    if (!audio) return;
+
+    try {
+      var osc = audio.createOscillator();
+      var gain = audio.createGain();
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, at);
+
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(volume, at + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
+
+      osc.connect(gain);
+      gain.connect(audio.destination);
+
+      osc.start(at);
+      osc.stop(at + duration);
+    } catch (error) {
+      // Optional.
+    }
   }
 
-  .button:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
+  function goodSound() {
+    if (!audio) return;
+
+    var now = audio.currentTime;
+
+    tone(1200, now, 0.09, 0.25);
+    tone(1800, now + 0.07, 0.13, 0.25);
   }
 
-  .button.secondary { background: #334155; }
-  .button.danger { background: #7f1d1d; }
-  .button.success { background: var(--success); }
-  .button.ocr { background: #7c3aed; }
-  .button.undo { background: #475569; }
+  function badSound() {
+    if (!audio) return;
 
-  .status {
-    margin-top: 7px;
-    min-height: 18px;
-    font-size: 12px;
-    line-height: 1.3;
-    color: var(--muted);
-    text-align: center;
+    var now = audio.currentTime;
+
+    tone(240, now, 0.12, 0.28);
+    tone(180, now + 0.13, 0.18, 0.28);
   }
 
-  .status.error { color: #fca5a5; font-weight: 600; }
-  .status.success { color: #86efac; font-weight: 700; }
-  .status.warning { color: #fcd34d; font-weight: 700; }
-
-  main {
-    padding: 10px;
-    max-width: 720px;
-    margin: 0 auto;
+  function vibrate(pattern) {
+    if (navigator.vibrate) {
+      try {
+        navigator.vibrate(pattern);
+      } catch (error) {
+        // Optional.
+      }
+    }
   }
 
-  .manual-card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 8px;
-    margin-bottom: 10px;
+  function goodFlash() {
+    flashEl.classList.remove("bad");
+    flashEl.classList.add("active");
+
+    window.setTimeout(function () {
+      flashEl.classList.remove("active");
+    }, 180);
   }
 
-  .manual-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  function badFlash() {
+    flashEl.classList.add("bad");
+    flashEl.classList.add("active");
+
+    window.setTimeout(function () {
+      flashEl.classList.remove("active");
+    }, 350);
   }
 
-  .manual-input {
-    flex: 1;
-    min-width: 0;
-    min-height: 44px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: #0e1626;
-    color: var(--text);
-    font-size: 16px;
-    padding: 0 10px;
+  function freeze() {
+    if (!videoEl.videoWidth || !videoEl.videoHeight) return;
+
+    freezeEl.width = videoEl.videoWidth;
+    freezeEl.height = videoEl.videoHeight;
+
+    var context = freezeEl.getContext("2d");
+
+    if (!context) return;
+
+    context.drawImage(videoEl, 0, 0);
+    freezeEl.classList.add("visible");
+
+    window.setTimeout(function () {
+      freezeEl.classList.remove("visible");
+    }, 550);
   }
 
-  .manual-input:focus {
-    outline: none;
-    border-color: var(--accent);
+  function addScan(barcode, source) {
+    var clean = String(barcode || "").trim().toUpperCase();
+
+    if (!clean) return false;
+
+    var now = Date.now();
+
+    if (lastScan.text === clean && now - lastScan.time < DUP_MS) {
+      return false;
+    }
+
+    var existing = findIndex(clean);
+
+    if (existing !== -1) {
+      lastScan.text = clean;
+      lastScan.time = now;
+
+      badSound();
+      vibrate([120, 70, 120]);
+      badFlash();
+      setStatus("Already scanned: " + clean, "warning");
+
+      return false;
+    }
+
+    lastScan.text = clean;
+    lastScan.time = now;
+    lastGoodScan = now;
+
+    scans.unshift({
+      barcode: clean,
+      timestamp: now
+    });
+
+    editing = null;
+
+    lastAction = {
+      type: "add",
+      barcode: clean
+    };
+
+    saveScans();
+    updateUi();
+    goodSound();
+    vibrate(80);
+    goodFlash();
+    freeze();
+
+    setStatus((source === "ocr" ? "OCR added: " : "Added: ") + clean, "success");
+
+    return true;
   }
 
-  .ocr-choices {
-    display: none;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 8px;
+  function onResult(result) {
+    if (!result || typeof result.getText !== "function") return;
+
+    var text = result.getText();
+
+    if (text) addScan(text, "camera");
   }
 
-  .ocr-choices.visible {
-    display: flex;
+  function showError(message) {
+    overlayEl.textContent = message;
+    overlayEl.classList.add("visible");
   }
 
-  .ocr-choice {
-    appearance: none;
-    border: 1px solid #7c3aed;
-    background: #2e1065;
-    color: white;
-    border-radius: 999px;
-    min-height: 36px;
-    padding: 6px 12px;
-    font-size: 14px;
-    font-weight: 800;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    cursor: pointer;
+  function hideOverlay() {
+    overlayEl.classList.remove("visible");
   }
 
-  .camera-card {
-    position: relative;
-    background: black;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    overflow: hidden;
-    margin-bottom: 10px;
+  function setCameraButton(running) {
+    startButton.textContent = running ? "Stop" : "Start";
+    startButton.classList.toggle("success", running);
   }
 
-  #camera {
-    width: 100%;
-    height: 34vh;
-    min-height: 210px;
-    max-height: 300px;
-    background: black;
-    display: block;
-    object-fit: cover;
+  function makeReader() {
+    var hints = new Map();
+    var formats = [
+      ZXing.BarcodeFormat.CODE_128,
+      ZXing.BarcodeFormat.EAN_13,
+      ZXing.BarcodeFormat.EAN_8,
+      ZXing.BarcodeFormat.UPC_A,
+      ZXing.BarcodeFormat.UPC_E,
+      ZXing.BarcodeFormat.CODE_39,
+      ZXing.BarcodeFormat.QR_CODE
+    ];
+
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+
+    return new ZXing.BrowserMultiFormatReader(hints, 100);
   }
 
-  #freezeFrame {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: none;
-    pointer-events: none;
+  function getTrack() {
+    if (!videoEl.srcObject) return null;
+
+    var tracks = videoEl.srcObject.getVideoTracks();
+
+    return tracks && tracks.length ? tracks[0] : null;
   }
 
-  #freezeFrame.visible { display: block; }
+  function updateZoomButtons() {
+    if (!zoomCaps) {
+      zoomInButton.disabled = true;
+      zoomOutButton.disabled = true;
+      zoomValue.textContent = "";
+      return;
+    }
 
-  .camera-overlay {
-    position: absolute;
-    inset: 0;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.72);
-    text-align: center;
-    padding: 16px;
-    font-size: 15px;
-    font-weight: 600;
+    zoomOutButton.disabled = zoom <= zoomCaps.min + 0.001;
+    zoomInButton.disabled = zoom >= zoomCaps.max - 0.001;
+    zoomValue.textContent = zoom.toFixed(1) + "×";
   }
 
-  .camera-overlay.visible { display: flex; }
+  async function setupControls() {
+    track = getTrack();
 
-  .scan-flash {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: rgba(34, 197, 94, 0.32);
-    border: 4px solid var(--success);
-    opacity: 0;
-    transition: opacity 0.12s ease;
+    if (!track) return;
+
+    try {
+      await track.applyConstraints({
+        advanced: [{ focusMode: "continuous" }]
+      });
+    } catch (error) {
+      // Optional.
+    }
+
+    var caps = null;
+
+    try {
+      caps = track.getCapabilities ? track.getCapabilities() : null;
+    } catch (error) {
+      caps = null;
+    }
+
+    torchButton.disabled = !(caps && caps.torch);
+
+    if (caps && caps.zoom && typeof caps.zoom.min === "number") {
+      zoomCaps = {
+        min: caps.zoom.min,
+        max: caps.zoom.max,
+        step: caps.zoom.step || 0.1
+      };
+
+      zoom = zoomCaps.min;
+    } else {
+      zoomCaps = null;
+      zoom = 1;
+    }
+
+    updateZoomButtons();
+
+    try {
+      var allDevices = await navigator.mediaDevices.enumerateDevices();
+
+      devices = allDevices.filter(function (device) {
+        return device.kind === "videoinput";
+      });
+
+      var settings = track.getSettings ? track.getSettings() : null;
+
+      if (settings && settings.deviceId) {
+        deviceId = settings.deviceId;
+      }
+
+      cameraButton.disabled = devices.length < 2;
+    } catch (error) {
+      devices = [];
+      cameraButton.disabled = true;
+    }
   }
 
-  .scan-flash.active { opacity: 1; }
+  async function toggleTorch() {
+    if (!cameraOn) {
+      setStatus("Start the camera first.", "error");
+      return;
+    }
 
-  .scan-flash.bad {
-    background: rgba(239, 68, 68, 0.32);
-    border-color: var(--danger);
+    if (!track) track = getTrack();
+
+    if (!track) {
+      setStatus("Camera unavailable.", "error");
+      return;
+    }
+
+    var caps = null;
+
+    try {
+      caps = track.getCapabilities ? track.getCapabilities() : null;
+    } catch (error) {
+      caps = null;
+    }
+
+    if (!caps || !caps.torch) {
+      setStatus("Flash is not available on this camera.", "error");
+      return;
+    }
+
+    try {
+      torchOn = !torchOn;
+
+      await track.applyConstraints({
+        advanced: [{ torch: torchOn }]
+      });
+
+      torchButton.classList.toggle("torch-on", torchOn);
+      setStatus(torchOn ? "Flash on." : "Flash off.", "success");
+    } catch (error) {
+      torchOn = false;
+      torchButton.classList.remove("torch-on");
+      setStatus("Could not control flash.", "error");
+    }
   }
 
-  .scan-guide {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    display: none;
+  async function setZoom(value) {
+    if (!track || !zoomCaps) return;
+
+    var next = Math.min(zoomCaps.max, Math.max(zoomCaps.min, Number(value)));
+
+    try {
+      await track.applyConstraints({
+        advanced: [{ zoom: next }]
+      });
+
+      zoom = next;
+      updateZoomButtons();
+    } catch (error) {
+      setStatus("Zoom is not supported at this level.", "error");
+    }
   }
 
-  .scan-guide.visible { display: block; }
-
-  .scan-guide::before {
-    content: "";
-    position: absolute;
-    left: 8%;
-    right: 8%;
-    top: 50%;
-    height: 2px;
-    background: rgba(34, 197, 94, 0.75);
-    box-shadow: 0 0 8px rgba(34, 197, 94, 0.7);
+  function zoomIn() {
+    if (zoomCaps) setZoom(zoom + (zoomCaps.step || 0.1));
   }
 
-  .scan-guide::after {
-    content: "";
-    position: absolute;
-    top: 18%;
-    bottom: 18%;
-    left: 50%;
-    width: 2px;
-    background: rgba(34, 197, 94, 0.35);
+  function zoomOut() {
+    if (zoomCaps) setZoom(zoom - (zoomCaps.step || 0.1));
   }
 
-  .camera-side-controls {
+  function toggleGuide() {
+    guideEl.classList.toggle("visible");
+    guideButton.classList.toggle("active", guideEl.classList.contains("visible"));
+  }
+
+  function startReminder() {
+    stopReminder();
+
+    reminder = window.setInterval(function () {
+      if (!cameraOn || torchOn) return;
+
+      if (Date.now() - lastGoodScan > 10000) {
+        setStatus("No reads yet. Try Zoom, Flash, or another angle.", "warning");
+      }
+    }, 10000);
+  }
+
+  function stopReminder() {
+    if (reminder) {
+      window.clearInterval(reminder);
+      reminder = null;
+    }
+  }
+
+  function startCamera(preferredId) {
+    if (cameraOn) {
+      stopCamera();
+      return;
+    }
+
+    if (typeof ZXing === "undefined") {
+      setStatus("Barcode library failed to load. Disable content blockers and reload.", "error");
+      return;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setStatus("Camera is not supported in this browser.", "error");
+      return;
+    }
+
+    initAudio();
+    setStatus("Requesting camera permission…");
+    showError("Requesting camera permission…");
+
+    try {
+      reader = makeReader();
+    } catch (error) {
+      reader = null;
+      setStatus("Scanner failed to start: " + error.message, "error");
+      return;
+    }
+
+    var video;
+
+    if (preferredId) {
+      video = {
+        deviceId: { exact: preferredId },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      };
+    } else {
+      video = {
+        facingMode: "environment",
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      };
+    }
+
+    reader.decodeFromConstraints(
+      { video: video, audio: false },
+      videoEl,
+      function (result, error, streamControls) {
+        if (streamControls) controls = streamControls;
+
+        if (result) onResult(result);
+      }
+    ).then(function () {
+      cameraOn = true;
+      deviceId = preferredId || deviceId;
+      lastGoodScan = Date.now();
+
+      hideOverlay();
+      setCameraButton(true);
+      setStatus("Camera running. Use ＋ to zoom.");
+
+      setupControls();
+      startReminder();
+    }).catch(function (error) {
+      cameraOn = false;
+      setCameraButton(false);
+      showError("Camera unavailable");
+
+      var message = error && error.message ? error.message : String(error);
+      var lower = message.toLowerCase();
+
+      if (lower.indexOf("permission") !== -1 || lower.indexOf("denied") !== -1 || lower.indexOf("notallowed") !== -1) {
+        setStatus("Camera permission denied.", "error");
+      } else if (lower.indexOf("notfound") !== -1 || lower.indexOf("no camera") !== -1) {
+        setStatus("No camera available.", "error");
+      } else {
+        setStatus("Scanner failed: " + message, "error");
+      }
+
+      if (reader) {
+        try {
+          reader.reset();
+        } catch (cleanupError) {
+          // Ignore.
+        }
+
+        reader = null;
+      }
+
+      controls = null;
+      track = null;
+    });
+  }
+
+  function stopCamera() {
+    if (!reader || !cameraOn) return;
+
+    stopReminder();
+
+    if (torchOn && track) {
+      try {
+        track.applyConstraints({
+          advanced: [{ torch: false }]
+        });
+      } catch (error) {
+        // Ignore.
+      }
+
+      torchOn = false;
+      torchButton.classList.remove("torch-on");
+    }
+
+    try {
+      if (controls && controls.stop) controls.stop();
+    } catch (error) {
+      // Ignore.
+    }
+
+    try {
+      reader.reset();
+    } catch (error) {
+      // Ignore.
+    }
+
+    cameraOn = false;
+    controls = null;
+    track = null;
+    reader = null;
+    zoomCaps = null;
+    zoom = 1;
+
+    setCameraButton(false);
+    torchButton.disabled = true;
+    cameraButton.disabled = true;
+    updateZoomButtons();
+    showError("Camera preview will appear here");
+    setStatus("Camera stopped.");
+  }
+
+  async function switchCamera() {
+    if (!cameraOn || devices.length < 2) return;
+
+    var current = devices.findIndex(function (device) {
+      return device.deviceId === deviceId;
+    });
+
+    var next = devices[(current + 1) % devices.length];
+
+    if (!next) return;
+
+    stopCamera();
+    startCamera(next.deviceId);
+  }
+
+  function downloadCsv(filename, content) {
+    var blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement("a");
+
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    window.setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 1000);
+  }
+
+  async function exportCsv() {
+    if (!scans.length) {
+      setStatus("No scans to export.", "error");
+      return;
+    }
+
+    var content = csvText();
+    var filename = exportName();
+
+    var canShare = !!(navigator.share && navigator.canShare && window.File && window.Blob);
+
+    if (canShare) {
+      try {
+        var file = new File([content], filename, { type: "text/csv" });
+        var data = {
+          title: "Barcode export",
+          text: scans.length + " scanned barcode" + (scans.length === 1 ? "" : "s") + ".",
+          files: [file]
+        };
+
+        if (navigator.canShare(data)) {
+          await navigator.share(data);
+
+          unsaved = false;
+          setStatus("Shared " + filename, "success");
+          return;
+        }
+      } catch (error) {
+        if (error && error.name === "AbortError") {
+          setStatus("Share cancelled.");
+          return;
+        }
+
+        setStatus("Share failed. Downloading instead.", "error");
+      }
+    }
+
+    downloadCsv(filename, content);
+
+    unsaved = false;
+    setStatus("Downloaded " + filename, "success");
+  }
+
+  function clearScans() {
+    if (!scans.length) return;
+
+    if (!window.confirm("Clear all " + scans.length + " scans?")) return;
+
+    scans = [];
+    editing = null;
+    lastAction = null;
+    lastScan.text = null;
+    lastScan.time = 0;
+    unsaved = false;
+
+    saveScans();
+    updateUi();
+    setStatus("All scans cleared.");
+  }
+
+  function addManual() {
+    var value = manualEl.value.trim().toUpperCase();
+
+    if (!value) {
+      setStatus("Enter an Asset ID first.", "error");
+      return;
+    }
+
+    if (!/^M\d{5}$/.test(value) && !/^R\d{8}$/.test(value)) {
+      setStatus("Asset ID must be M12345 or R12345678.", "error");
+      return;
+    }
+
+    if (addScan(value, "manual")) {
+      manualEl.value = "";
+      manualEl.blur();
+    }
+  }
+
+  function assetCandidates(text) {
+    if (!text) return [];
+
+    var matches = text.match(/\b[MR]\d{5,8}\b/gi);
+
+    if (!matches) return [];
+
+    var valid = [];
+
+    matches.forEach(function (match) {
+      var clean = match.toUpperCase();
+
+      if ((/^M\d{5}$/.test(clean) || /^R\d{8}$/.test(clean)) && valid.indexOf(clean) === -1) {
+        valid.push(clean);
+      }
+    });
+
+    return valid;
+  }
+
+  function showChoices(candidates) {
+    choicesEl.innerHTML = "";
+    choicesEl.classList.add("visible");
+
+    candidates.forEach(function (candidate) {
+      var button = document.createElement("button");
+      button.className = "ocr-choice";
+      button.type = "button";
+      button.textContent = candidate;
+
+      button.addEventListener("click", function () {
+        manualEl.value = candidate;
+        manualEl.focus();
+        hideChoices();
+        setStatus("Selected " + candidate + ". Press Add.", "success");
+      });
+
+      choicesEl.appendChild(button);
+    });
+  }
+
+  function hideChoices() {
+    choicesEl.innerHTML = "";
+    choicesEl.classList.remove("visible");
+  }
+
+  async function getWorker() {
+    if (ocrWorker) return ocrWorker;
+
+    if (typeof Tesseract === "undefined" || !Tesseract.createWorker) {
+      throw new Error("OCR library failed to load.");
+    }
+
+    setStatus("Loading OCR engine…");
+
+    ocrWorker = await Tesseract.createWorker("eng", 1);
+
+    await ocrWorker.setParameters({
+      tessedit_char_whitelist: "MR0123456789"
+    });
+
+    return ocrWorker;
+  }
+
+  function openCrop(file) {
+    var reader = new FileReader();
+
+    reader.onload = function () {
+      cropImage = new Image();
+
+      cropImage.onload = function () {
+        cropImg.src = cropImage.src;
+        cropModal.classList.add("visible");
+
+        cropStart = null;
+        cropRect = null;
+        cropBox.style.display = "none";
+
+        setStatus("Drag around the Asset ID, then press Crop & Read.");
+      };
+
+      cropImage.onerror = function () {
+        setStatus("Could not load image.", "error");
+      };
+
+      cropImage.src = reader.result;
+    };
+
+    reader.onerror = function () {
+      setStatus("Could not read image.", "error");
+    };
+
+    reader.readAsDataURL(file);
+  }
+
+  function closeCrop() {
+    cropModal.classList.remove("visible");
+    cropImage = null;
+    cropStart = null;
+    cropRect = null;
+    cropImg.src = "";
+    cropBox.style.display = "none";
+    fileInput.value = "";
+  }
+
+  function stagePoint(event) {
+    var imageRect = cropImg.getBoundingClientRect();
+    var x = event.clientX - imageRect.left;
+    var y = event.clientY - imageRect.top;
+
+    return {
+      x: Math.max(0, Math.min(imageRect.width, x)),
+      y: Math.max(0, Math.min(imageRect.height, y)),
+      offsetX: imageRect.left - cropStage.getBoundingClientRect().left,
+      offsetY: imageRect.top - cropStage.getBoundingClientRect().top
+    };
+  }
+
+  function drawCrop(point) {
+    if (!cropStart) return;
+
+    var left = Math.min(cropStart.x, point.x);
+    var top = Math.min(cropStart.y, point.y);
+    var width = Math.abs(point.x - cropStart.x);
+    var height = Math.abs(point.y - cropStart.y);
+
+    cropRect = {
+      left: left,
+      top: top,
+      width: width,
+      height: height
+    };
+
+    cropBox.style.display = "block";
+    cropBox.style.left = (cropStart.offsetX + left) + "px";
+    cropBox.style.top = (cropStart.offsetY + top) + "px";
+    cropBox.style.width = width + "px";
+    cropBox.style.height = height + "px";
+  }
+
+  function cropAndRead() {
+    if (!cropImage) {
+      setStatus("No image loaded.", "error");
+      return;
+    }
+
+    var imageRect = cropImg.getBoundingClientRect();
+    var scaleX = cropImage.naturalWidth / imageRect.width;
+    var scaleY = cropImage.naturalHeight / imageRect.height;
+
+    var sx = 0;
+    var sy = 0;
+    var sw = cropImage.naturalWidth;
+    var sh = cropImage.naturalHeight;
+
+    if (cropRect && cropRect.width > 8 && cropRect.height > 8) {
+      sx = cropRect.left * scaleX;
+      sy = cropRect.top * scaleY;
+      sw = cropRect.width * scaleX;
+      sh = cropRect.height * scaleY;
+    }
+
+    var canvas = document.createElement("canvas");
+    var scale = Math.min(3, Math.max(1, 1200 / Math.max(sw, sh)));
+
+    canvas.width = Math.round(sw * scale);
+    canvas.height = Math.round(sh * scale);
+
+    var context = canvas.getContext("2d");
+
+    if (!context) {
+      setStatus("Could not prepare crop.", "error");
+      return;
+    }
+
+    context.drawImage(cropImage, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+    closeCrop();
+    runOcr(canvas);
+  }
+
+  async function runOcr(image) {
+    if (ocrBusy) return;
+
+    if (!image) {
+      setStatus("No image for OCR.", "error");
+      return;
+    }
+
+    if (typeof Tesseract === "undefined" || !Tesseract.createWorker) {
+      setStatus("OCR library failed to load.", "error");
+      return;
+    }
+
+    ocrBusy = true;
+    ocrButton.disabled = true;
+    ocrButton.textContent = "…";
+    setStatus("Reading cropped Asset ID…");
+
+    try {
+      var worker = await getWorker();
+      var result = await worker.recognize(image);
+      var text = result && result.data && result.data.text ? result.data.text : "";
+      var candidates = assetCandidates(text);
+
+      if (!candidates.length) {
+        setStatus("No Asset ID found. Try a tighter crop or more light.", "error");
+        return;
+      }
+
+      if (candidates.length === 1) {
+        if (!addScan(candidates[0], "ocr")) {
+          manualEl.value = candidates[0];
+          manualEl.focus();
+        }
+
+        return;
+      }
+
+      showChoices(candidates);
+      setStatus("Found " + candidates.length + " possible IDs. Tap one.", "success");
+    } catch (error) {
+      setStatus("OCR failed: " + (error && error.message ? error.message : "Unknown error"), "error");
+    } finally {
+      ocrBusy = false;
+      ocrButton.disabled = false;
+      ocrButton.textContent = "OCR";
+      fileInput.value = "";
+    }
+  }
+
+  function stopGesture(event) {
+    event.preventDefault();
+  }
+
+  cameraCard.addEventListener("gesturestart", stopGesture);
+  cameraCard.addEventListener("gesturechange", stopGesture);
+  cameraCard.addEventListener("gestureend", stopGesture);
+
+  cropStage.addEventListener("pointerdown", function (event) {
+    if (!cropImage) return;
+
+    event.preventDefault();
+    cropStart = stagePoint(event);
+    cropRect = null;
+    drawCrop(cropStart);
+  });
+
+  cropStage.addEventListener("pointermove", function (event) {
+    if (!cropStart) return;
+
+    event.preventDefault();
+    drawCrop(stagePoint(event));
+  });
+
+  cropStage.addEventListener("pointerup", function (event) {
+    if (!cropStart) return;
+
+    event.preventDefault();
+    drawCrop(stagePoint(event));
+    cropStart = null;
+  });
+
+  cropStage.addEventListener("pointercancel", function () {
+    cropStart = null;
+  });
+
+  startButton.addEventListener("click", function () {
+    startCamera();
+  });
+
+  exportButton.addEventListener("click", function () {
+    exportCsv();
+  });
+
+  clearButton.addEventListener("click", clearScans);
+  undoButton.addEventListener("click", undo);
+  addButton.addEventListener("click", addManual);
+  torchButton.addEventListener("click", toggleTorch);
+  cameraButton.addEventListener("click", switchCamera);
+  guideButton.addEventListener("click", toggleGuide);
+  zoomInButton.addEventListener("click", zoomIn);
+  zoomOutButton.addEventListener("click", zoomOut);
+
+  ocrButton.addEventListener("click", function () {
+    if (!ocrBusy) fileInput.click();
+  });
+
+  fileInput.addEventListener("change", function () {
+    var file = fileInput.files && fileInput.files[0];
+
+    if (file) openCrop(file);
+  });
+
+  cropCancel.addEventListener("click", function () {
+    closeCrop();
+    setStatus("OCR cancelled.");
+  });
+
+  cropRead.addEventListener("click", cropAndRead);
+
+  searchEl.addEventListener("input", updateUi);
+
+  venueEl.addEventListener("input", function () {
+    meta.venue = venueEl.value;
+    saveMetadata();
+  });
+
+  transferEl.addEventListener("input", function () {
+    meta.transfer = transferEl.value;
+    saveMetadata();
+  });
+
+  manualEl.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addManual();
+    }
+  });
+
+  window.addEventListener("pagehide", stopCamera);
+
+  window.addEventListener("beforeunload", function (event) {
+    stopCamera();
+
+    if (unsaved && scans.length) {
+      event.preventDefault();
+      event.returnValue = "";
+      return "";
+    }
+  });
+
+  venueEl.value = meta.venue;
+  transferEl.value = meta.transfer;
+  updateUi();
+
+  if (typeof ZXing === "undefined") {
+    setStatus("Barcode library failed to load. Disable content blockers and reload.", "error");
+    showError("Library failed to load");
+  } else {
+    setStatus("Ready. Press Start to use the camera.");
+  }
+})();
+</script>
+
+</body>
+</html>
+```
