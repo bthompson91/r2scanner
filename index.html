@@ -32,6 +32,9 @@ body{padding-bottom:env(safe-area-inset-bottom)}
 .danger{background:#7f1d1d}
 .success{background:var(--success)}
 .ocr{background:#7c3aed}
+.hard{background:#b45309;font-size:11px;letter-spacing:.04em}
+.hard:disabled{opacity:.45}
+.camera-frame.hard-active{outline:2px solid #f59e0b;outline-offset:-2px}
 .undo{background:#475569}
 .status{margin-top:7px;min-height:18px;font-size:12px;color:var(--muted);text-align:center}
 .status.error{color:#fca5a5;font-weight:600}
@@ -144,6 +147,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
       <button class="camera-control" id="cameraButton" type="button" disabled>CAM</button>
       <button class="camera-control" id="torchButton" type="button" disabled>⚡</button>
       <button class="camera-control active" id="guideButton" type="button">⊞</button>
+      <button class="camera-control hard" id="hardButton" type="button">TRY</button>
       <button class="camera-control" id="zoomInButton" type="button" disabled>＋</button>
       <div class="zoom-value" id="zoomValue"></div>
       <button class="camera-control" id="zoomOutButton" type="button" disabled>－</button>
@@ -151,7 +155,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
   </section>
 
   <div class="hint">
-    Use ＋ to zoom toward distant barcodes, ⚡ for flash, CAM to change lens, and ⊞ to toggle the guide. OCR lets you crop around the Asset ID before reading it.
+    Use ＋ to zoom toward distant barcodes, ⚡ for flash, CAM to change lens, and ⊞ to toggle the guide. Tap the preview or press TRY for a harder scan. OCR lets you crop around the Asset ID before reading it.
   </div>
 
   <section>
@@ -189,7 +193,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
 (function () {
   "use strict";
 
-  var APP_VERSION = "v0.13";
+  var APP_VERSION = "v0.14";
   var STORAGE_KEY = "barcode-scanner-scans-v1";
   var METADATA_KEY = "barcode-scanner-metadata-v1";
   var DUP_MS = 1500;
@@ -216,6 +220,8 @@ main{padding:10px;max-width:720px;margin:0 auto}
   var cropImage = null;
   var cropStart = null;
   var cropRect = null;
+  var hardReader = null;
+  var hardBusy = false;
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -236,6 +242,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
   var cameraButton = $("cameraButton");
   var torchButton = $("torchButton");
   var guideButton = $("guideButton");
+  var hardButton = $("hardButton");
   var zoomInButton = $("zoomInButton");
   var zoomOutButton = $("zoomOutButton");
   var zoomValue = $("zoomValue");
@@ -786,6 +793,202 @@ main{padding:10px;max-width:720px;margin:0 auto}
     startButton.classList.toggle("success", running);
   }
 
+  function makeHardReader() {
+    var hints = new Map();
+    var formats = [
+      ZXing.BarcodeFormat.CODE_128,
+      ZXing.BarcodeFormat.EAN_13,
+      ZXing.BarcodeFormat.EAN_8,
+      ZXing.BarcodeFormat.UPC_A,
+      ZXing.BarcodeFormat.UPC_E,
+      ZXing.BarcodeFormat.CODE_39,
+      ZXing.BarcodeFormat.QR_CODE
+    ];
+
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+
+    return new ZXing.BrowserMultiFormatReader(hints, 100);
+  }
+
+  function grabVideoCanvas() {
+    var width = videoEl.videoWidth;
+    var height = videoEl.videoHeight;
+
+    if (!width || !height) return null;
+
+    var canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    var context = canvas.getContext("2d", { willReadFrequently: true });
+
+    context.drawImage(videoEl, 0, 0, width, height);
+
+    return canvas;
+  }
+
+  function enhanceCanvas(canvas) {
+    try {
+      var context = canvas.getContext("2d", { willReadFrequently: true });
+      var image = context.getImageData(0, 0, canvas.width, canvas.height);
+      var data = image.data;
+
+      for (var i = 0; i < data.length; i += 4) {
+        var gray = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114 - 128) * 1.45 + 128;
+
+        gray = gray < 0 ? 0 : gray > 255 ? 255 : gray;
+
+        data[i] = gray;
+        data[i + 1] = gray;
+        data[i + 2] = gray;
+      }
+
+      context.putImageData(image, 0, 0);
+    } catch (error) {
+      // If pixel access is unavailable, return the original canvas.
+    }
+
+    return canvas;
+  }
+
+  function makeVariantCanvas(source, options) {
+    var cropScale = options.cropScale || 1;
+    var centreX = typeof options.centreX === "number" ? options.centreX : source.width / 2;
+    var centreY = typeof options.centreY === "number" ? options.centreY : source.height / 2;
+    var rotation = options.rotation || 0;
+
+    var cropWidth = Math.max(1, Math.min(source.width, Math.round(source.width * cropScale)));
+    var cropHeight = Math.max(1, Math.min(source.height, Math.round(source.height * cropScale)));
+
+    var sourceX = Math.round(centreX - cropWidth / 2);
+    var sourceY = Math.round(centreY - cropHeight / 2);
+
+    sourceX = Math.max(0, Math.min(source.width - cropWidth, sourceX));
+    sourceY = Math.max(0, Math.min(source.height - cropHeight, sourceY));
+
+    var swap = rotation === 90 || rotation === 270;
+    var outputWidth = swap ? cropHeight : cropWidth;
+    var outputHeight = swap ? cropWidth : cropHeight;
+
+    var canvas = document.createElement("canvas");
+    canvas.width = outputWidth;
+    canvas.height = outputHeight;
+
+    var context = canvas.getContext("2d", { willReadFrequently: true });
+
+    context.save();
+    context.translate(outputWidth / 2, outputHeight / 2);
+    context.rotate(rotation * Math.PI / 180);
+    context.drawImage(source, sourceX, sourceY, cropWidth, cropHeight, -cropWidth / 2, -cropHeight / 2, cropWidth, cropHeight);
+    context.restore();
+
+    return options.enhance ? enhanceCanvas(canvas) : canvas;
+  }
+
+  function decodeHardCanvas(canvas) {
+    if (!hardReader || typeof hardReader.decodeFromCanvas !== "function") return null;
+
+    try {
+      return hardReader.decodeFromCanvas(canvas);
+    } catch (error) {
+      return null;
+    }
+  }
+
+  async function forceScan(event) {
+    if (!cameraOn) {
+      setStatus("Start the camera first.", "error");
+      return;
+    }
+
+    if (hardBusy) return;
+
+    if (typeof ZXing === "undefined") {
+      setStatus("Barcode library failed to load. Disable content blockers and reload.", "error");
+      return;
+    }
+
+    var source = grabVideoCanvas();
+
+    if (!source) {
+      setStatus("Camera frame not ready yet.", "warning");
+      return;
+    }
+
+    hardBusy = true;
+    hardButton.disabled = true;
+    cameraCard.classList.add("hard-active");
+    setStatus("Trying harder…");
+
+    if (!hardReader) {
+      try {
+        hardReader = makeHardReader();
+      } catch (error) {
+        hardReader = null;
+      }
+    }
+
+    var centreX = source.width / 2;
+    var centreY = source.height / 2;
+
+    if (event) {
+      var rect = videoEl.getBoundingClientRect();
+
+      if (rect.width && rect.height) {
+        centreX = ((event.clientX - rect.left) / rect.width) * source.width;
+        centreY = ((event.clientY - rect.top) / rect.height) * source.height;
+      }
+    }
+
+    var variants = [
+      { cropScale: 1, rotation: 0, enhance: false },
+      { cropScale: 1, rotation: 0, enhance: true },
+      { cropScale: 0.65, rotation: 0, enhance: false },
+      { cropScale: 0.45, centreX: centreX, centreY: centreY, rotation: 0, enhance: false },
+      { cropScale: 0.45, centreX: centreX, centreY: centreY, rotation: 0, enhance: true },
+      { cropScale: 1, rotation: 90, enhance: false },
+      { cropScale: 1, rotation: 180, enhance: false },
+      { cropScale: 1, rotation: 270, enhance: false }
+    ];
+
+    var found = null;
+
+    for (var i = 0; i < variants.length && !found; i++) {
+      var canvas = makeVariantCanvas(source, variants[i]);
+      var result = decodeHardCanvas(canvas);
+
+      if (result && typeof result.getText === "function") {
+        var text = result.getText();
+
+        if (text) found = text;
+      }
+
+      await new Promise(function (resolve) {
+        window.setTimeout(resolve, 10);
+      });
+    }
+
+    hardBusy = false;
+    hardButton.disabled = false;
+    cameraCard.classList.remove("hard-active");
+
+    if (found) {
+      var added = addScan(found, "camera");
+
+      if (!added) {
+        setStatus("Force scan read " + found + ", but it was not added.", "warning");
+      }
+
+      return;
+    }
+
+    badSound();
+    vibrate([120, 70, 120]);
+    badFlash();
+    setStatus("No barcode found. Try zoom, flash, another angle, or OCR.", "warning");
+  }
+
   function makeReader() {
     var hints = new Map();
     var formats = [
@@ -1101,6 +1304,20 @@ main{padding:10px;max-width:720px;margin:0 auto}
     controls = null;
     track = null;
     reader = null;
+
+    if (hardReader) {
+      try {
+        hardReader.reset();
+      } catch (hardCleanupError) {
+        // Ignore.
+      }
+
+      hardReader = null;
+    }
+
+    hardBusy = false;
+    hardButton.disabled = false;
+    cameraCard.classList.remove("hard-active");
     zoomCaps = null;
     zoom = 1;
 
@@ -1503,6 +1720,8 @@ main{padding:10px;max-width:720px;margin:0 auto}
   torchButton.addEventListener("click", toggleTorch);
   cameraButton.addEventListener("click", switchCamera);
   guideButton.addEventListener("click", toggleGuide);
+  hardButton.addEventListener("click", forceScan);
+  videoEl.addEventListener("click", forceScan);
   zoomInButton.addEventListener("click", zoomIn);
   zoomOutButton.addEventListener("click", zoomOut);
 
