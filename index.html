@@ -1,14 +1,15 @@
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0b1220">
 <title>Barcode Scanner</title>
-<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js" defer></script>
 <style>
   :root {
     color-scheme: dark;
@@ -20,12 +21,14 @@
     --accent: #2f81f7;
     --success: #22c55e;
     --danger: #ef4444;
+    --warning: #f59e0b;
     --border: #26314a;
   }
 
   * {
     box-sizing: border-box;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 
   html, body {
@@ -35,6 +38,14 @@
     background: var(--bg);
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Arial, sans-serif;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  input {
+    -webkit-user-select: auto;
+    user-select: auto;
   }
 
   body {
@@ -154,9 +165,8 @@
     background: #7c3aed;
   }
 
-  .button.torch-on {
-    background: #f59e0b;
-    color: #1f1300;
+  .button.undo {
+    background: #475569;
   }
 
   .status {
@@ -175,6 +185,11 @@
 
   .status.success {
     color: #86efac;
+    font-weight: 700;
+  }
+
+  .status.warning {
+    color: #fcd34d;
     font-weight: 700;
   }
 
@@ -215,6 +230,31 @@
     border-color: var(--accent);
   }
 
+  .ocr-choices {
+    display: none;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .ocr-choices.visible {
+    display: flex;
+  }
+
+  .ocr-choice {
+    appearance: none;
+    border: 1px solid #7c3aed;
+    background: #2e1065;
+    color: white;
+    border-radius: 999px;
+    min-height: 36px;
+    padding: 6px 12px;
+    font-size: 14px;
+    font-weight: 800;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    cursor: pointer;
+  }
+
   .camera-card {
     position: relative;
     background: black;
@@ -232,6 +272,20 @@
     background: black;
     display: block;
     object-fit: cover;
+  }
+
+  #freezeFrame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: none;
+    pointer-events: none;
+  }
+
+  #freezeFrame.visible {
+    display: block;
   }
 
   .camera-overlay {
@@ -265,6 +319,43 @@
     opacity: 1;
   }
 
+  .scan-flash.bad {
+    background: rgba(239, 68, 68, 0.32);
+    border-color: var(--danger);
+  }
+
+  .scan-guide {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    display: none;
+  }
+
+  .scan-guide.visible {
+    display: block;
+  }
+
+  .scan-guide::before {
+    content: "";
+    position: absolute;
+    left: 8%;
+    right: 8%;
+    top: 50%;
+    height: 2px;
+    background: rgba(34, 197, 94, 0.75);
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.7);
+  }
+
+  .scan-guide::after {
+    content: "";
+    position: absolute;
+    top: 18%;
+    bottom: 18%;
+    left: 50%;
+    width: 2px;
+    background: rgba(34, 197, 94, 0.35);
+  }
+
   .camera-side-controls {
     position: absolute;
     top: 10px;
@@ -284,9 +375,9 @@
     color: white;
     border-radius: 12px;
     min-width: 46px;
-    min-height: 40px;
-    padding: 6px 8px;
-    font-size: 12px;
+    min-height: 38px;
+    padding: 5px 7px;
+    font-size: 11px;
     font-weight: 800;
     cursor: pointer;
     display: flex;
@@ -309,6 +400,11 @@
     border-color: rgba(245, 158, 11, 0.9);
   }
 
+  .camera-control.active {
+    border-color: var(--accent);
+    background: rgba(47, 129, 247, 0.75);
+  }
+
   .zoom-value {
     font-size: 10px;
     color: var(--muted);
@@ -325,6 +421,30 @@
     color: var(--muted);
     font-size: 11px;
     line-height: 1.35;
+  }
+
+  .search-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .search-input {
+    flex: 1;
+    min-width: 0;
+    min-height: 40px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #0e1626;
+    color: var(--text);
+    font-size: 15px;
+    padding: 0 10px;
+  }
+
+  .search-input:focus {
+    outline: none;
+    border-color: var(--accent);
   }
 
   .section-title {
@@ -453,7 +573,7 @@
 
 <header class="toolbar">
   <div class="toolbar-top">
-    <span class="version">v0.7</span>
+    <span class="version">v0.8</span>
     <span class="app-title">Barcode Scanner</span>
     <span></span>
   </div>
@@ -492,6 +612,8 @@
       <button class="button ocr" id="ocrButton" type="button">OCR</button>
     </div>
 
+    <div class="ocr-choices" id="ocrChoices"></div>
+
     <input
       id="ocrFileInput"
       type="file"
@@ -503,11 +625,15 @@
 
   <section class="camera-card">
     <video id="camera" playsinline muted autoplay></video>
+    <canvas id="freezeFrame"></canvas>
     <div class="camera-overlay" id="cameraOverlay">Camera preview will appear here</div>
     <div class="scan-flash" id="scanFlash"></div>
+    <div class="scan-guide visible" id="scanGuide"></div>
 
     <div class="camera-side-controls">
+      <button class="camera-control" id="cameraButton" type="button" disabled>CAM</button>
       <button class="camera-control" id="torchButton" type="button" disabled>⚡</button>
+      <button class="camera-control active" id="guideButton" type="button">⊞</button>
       <button class="camera-control" id="zoomInButton" type="button" disabled>＋</button>
       <div class="zoom-value" id="zoomValue"></div>
       <button class="camera-control" id="zoomOutButton" type="button" disabled>－</button>
@@ -515,13 +641,27 @@
   </section>
 
   <div class="hint">
-    Use ＋ to zoom toward distant barcodes and ⚡ for the flash. OCR reads Asset IDs in <strong>M12345</strong> or <strong>R12345678</strong> format and adds them only when one clear match is found.
+    Use ＋ to zoom toward distant barcodes, ⚡ for flash, CAM to change lens, and ⊞ to toggle the scan guide. Duplicate Asset IDs are not added; you will hear a warning sound.
   </div>
 
   <section>
     <div class="section-title">
       <span>Scanned Barcodes</span>
-      <span>Newest first</span>
+      <button class="button undo" id="undoButton" type="button" disabled>Undo</button>
+    </div>
+
+    <div class="search-row">
+      <input
+        class="search-input"
+        id="searchInput"
+        type="search"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="characters"
+        spellcheck="false"
+        placeholder="Search scanned Asset IDs"
+        aria-label="Search scanned Asset IDs"
+      >
     </div>
 
     <ul class="scan-list" id="scanList"></ul>
@@ -533,13 +673,15 @@
 (function () {
   "use strict";
 
-  var APP_VERSION = "v0.7";
+  var APP_VERSION = "v0.8";
   var STORAGE_KEY = "barcode-scanner-scans-v1";
   var DUPLICATE_SUPPRESSION_MS = 1500;
 
   var codeReader = null;
   var streamControls = null;
   var cameraTrack = null;
+  var cameraDevices = [];
+  var currentDeviceId = null;
   var isCameraRunning = false;
   var isTorchOn = false;
   var isOcrRunning = false;
@@ -551,18 +693,28 @@
     text: null,
     timestamp: 0
   };
+  var lastSuccessfulScanTime = 0;
+  var hasUnexportedChanges = false;
+  var lastAction = null;
+  var editingIndex = null;
+  var noReadReminderTimer = null;
 
   var startButton = document.getElementById("startButton");
   var exportButton = document.getElementById("exportButton");
   var clearButton = document.getElementById("clearButton");
+  var undoButton = document.getElementById("undoButton");
   var statusElement = document.getElementById("status");
   var scanCountElement = document.getElementById("scanCount");
   var scanListElement = document.getElementById("scanList");
   var emptyStateElement = document.getElementById("emptyState");
   var cameraOverlayElement = document.getElementById("cameraOverlay");
   var scanFlashElement = document.getElementById("scanFlash");
+  var scanGuideElement = document.getElementById("scanGuide");
+  var freezeFrameElement = document.getElementById("freezeFrame");
   var cameraElement = document.getElementById("camera");
+  var cameraButton = document.getElementById("cameraButton");
   var torchButton = document.getElementById("torchButton");
+  var guideButton = document.getElementById("guideButton");
   var zoomInButton = document.getElementById("zoomInButton");
   var zoomOutButton = document.getElementById("zoomOutButton");
   var zoomValueElement = document.getElementById("zoomValue");
@@ -570,9 +722,10 @@
   var addManualButton = document.getElementById("addManualButton");
   var ocrButton = document.getElementById("ocrButton");
   var ocrFileInput = document.getElementById("ocrFileInput");
+  var ocrChoicesElement = document.getElementById("ocrChoices");
+  var searchInputElement = document.getElementById("searchInput");
 
   var scans = loadScans();
-  var editingIndex = null;
 
   function loadScans() {
     try {
@@ -606,6 +759,7 @@
   function saveScans() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(scans));
+      hasUnexportedChanges = scans.length > 0;
     } catch (error) {
       setStatus("Could not save scans locally. Storage may be full or restricted.", "error");
     }
@@ -628,9 +782,32 @@
     return hours + ":" + minutes + ":" + seconds;
   }
 
+  function formatExportTimestamp(date) {
+    var year = date.getFullYear();
+    var month = String(date.getMonth() + 1).padStart(2, "0");
+    var day = String(date.getDate()).padStart(2, "0");
+    var hours = String(date.getHours()).padStart(2, "0");
+    var minutes = String(date.getMinutes()).padStart(2, "0");
+    var seconds = String(date.getSeconds()).padStart(2, "0");
+
+    return year + "-" + month + "-" + day + "-" + hours + minutes + seconds;
+  }
+
+  function findScanIndex(barcode) {
+    for (var i = 0; i < scans.length; i++) {
+      if (scans[i].barcode === barcode) {
+        return i;
+      }
+    }
+
+    return -1;
+  }
+
   function updateUi() {
     scanCountElement.textContent = String(scans.length);
     scanListElement.innerHTML = "";
+
+    undoButton.disabled = !lastAction;
 
     if (scans.length === 0) {
       emptyStateElement.style.display = "block";
@@ -643,7 +820,16 @@
     exportButton.disabled = false;
     clearButton.disabled = false;
 
+    var searchTerm = searchInputElement.value.trim().toUpperCase();
+    var visibleCount = 0;
+
     scans.forEach(function (scan, index) {
+      if (searchTerm && scan.barcode.indexOf(searchTerm) === -1) {
+        return;
+      }
+
+      visibleCount++;
+
       var listItem = document.createElement("li");
       listItem.className = "scan-item";
 
@@ -655,6 +841,13 @@
 
       scanListElement.appendChild(listItem);
     });
+
+    if (visibleCount === 0) {
+      emptyStateElement.style.display = "block";
+      emptyStateElement.textContent = "No scans match the search.";
+    } else {
+      emptyStateElement.style.display = "none";
+    }
   }
 
   function buildDisplayItem(listItem, scan, index) {
@@ -764,17 +957,29 @@
       return;
     }
 
-    var duplicateIndex = scans.findIndex(function (scan, scanIndex) {
-      return scanIndex !== index && scan.barcode === cleanedValue;
-    });
+    var duplicateIndex = findScanIndex(cleanedValue);
 
-    if (duplicateIndex !== -1) {
+    if (duplicateIndex !== -1 && duplicateIndex !== index) {
       setStatus("That barcode already exists in the list.", "error");
+      return;
+    }
+
+    var previousValue = scans[index].barcode;
+
+    if (previousValue === cleanedValue) {
+      editingIndex = null;
+      updateUi();
       return;
     }
 
     scans[index].barcode = cleanedValue;
     editingIndex = null;
+
+    lastAction = {
+      type: "edit",
+      index: index,
+      previousValue: previousValue
+    };
 
     saveScans();
     updateUi();
@@ -796,7 +1001,7 @@
       return;
     }
 
-    scans.splice(index, 1);
+    var removedScan = scans.splice(index, 1)[0];
 
     if (editingIndex === index) {
       editingIndex = null;
@@ -804,9 +1009,47 @@
       editingIndex = editingIndex - 1;
     }
 
+    lastAction = {
+      type: "delete",
+      index: index,
+      scan: removedScan
+    };
+
     saveScans();
     updateUi();
     setStatus("Removed " + removedBarcode);
+  }
+
+  function undoLastAction() {
+    if (!lastAction) {
+      return;
+    }
+
+    var action = lastAction;
+
+    if (action.type === "add") {
+      var index = findScanIndex(action.barcode);
+
+      if (index !== -1) {
+        scans.splice(index, 1);
+      }
+
+      setStatus("Undo: removed " + action.barcode);
+    } else if (action.type === "edit") {
+      if (action.index >= 0 && action.index < scans.length) {
+        scans[action.index].barcode = action.previousValue;
+      }
+
+      setStatus("Undo: restored " + action.previousValue);
+    } else if (action.type === "delete") {
+      var insertIndex = Math.min(action.index, scans.length);
+      scans.splice(insertIndex, 0, action.scan);
+      setStatus("Undo: restored " + action.scan.barcode);
+    }
+
+    lastAction = null;
+    saveScans();
+    updateUi();
   }
 
   function initAudio() {
@@ -830,13 +1073,9 @@
     }
   }
 
-  function playBeep() {
+  function playTone(frequency, startTime, duration, volume) {
     if (!audioContext) {
       return;
-    }
-
-    if (audioContext.state === "suspended") {
-      audioContext.resume();
     }
 
     try {
@@ -844,27 +1083,48 @@
       var gainNode = audioContext.createGain();
 
       oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(1200, audioContext.currentTime);
-      oscillator.frequency.setValueAtTime(1800, audioContext.currentTime + 0.07);
+      oscillator.frequency.setValueAtTime(frequency, startTime);
 
-      gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.25, audioContext.currentTime + 0.01);
-      gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.18);
+      gainNode.gain.setValueAtTime(0.0001, startTime);
+      gainNode.gain.exponentialRampToValueAtTime(volume, startTime + 0.01);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
 
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
 
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.2);
+      oscillator.start(startTime);
+      oscillator.stop(startTime + duration);
     } catch (error) {
       // Audio feedback is optional.
     }
   }
 
-  function vibrate() {
+  function playGoodSound() {
+    if (!audioContext) {
+      return;
+    }
+
+    var now = audioContext.currentTime;
+
+    playTone(1200, now, 0.09, 0.25);
+    playTone(1800, now + 0.07, 0.13, 0.25);
+  }
+
+  function playBadSound() {
+    if (!audioContext) {
+      return;
+    }
+
+    var now = audioContext.currentTime;
+
+    playTone(240, now, 0.12, 0.28);
+    playTone(180, now + 0.13, 0.18, 0.28);
+  }
+
+  function vibrate(pattern) {
     if (navigator.vibrate) {
       try {
-        navigator.vibrate(80);
+        navigator.vibrate(pattern);
       } catch (error) {
         // Vibration is optional and may be unsupported.
       }
@@ -872,6 +1132,7 @@
   }
 
   function flashSuccess() {
+    scanFlashElement.classList.remove("bad");
     scanFlashElement.classList.add("active");
 
     window.setTimeout(function () {
@@ -879,7 +1140,38 @@
     }, 180);
   }
 
-  function addScan(barcode) {
+  function flashWarning() {
+    scanFlashElement.classList.add("bad");
+    scanFlashElement.classList.add("active");
+
+    window.setTimeout(function () {
+      scanFlashElement.classList.remove("active");
+    }, 350);
+  }
+
+  function showFreezeFrame() {
+    if (!cameraElement.videoWidth || !cameraElement.videoHeight) {
+      return;
+    }
+
+    freezeFrameElement.width = cameraElement.videoWidth;
+    freezeFrameElement.height = cameraElement.videoHeight;
+
+    var context = freezeFrameElement.getContext("2d");
+
+    if (!context) {
+      return;
+    }
+
+    context.drawImage(cameraElement, 0, 0);
+    freezeFrameElement.classList.add("visible");
+
+    window.setTimeout(function () {
+      freezeFrameElement.classList.remove("visible");
+    }, 550);
+  }
+
+  function addScan(barcode, source) {
     var cleanedBarcode = String(barcode || "").trim().toUpperCase();
 
     if (!cleanedBarcode) {
@@ -895,8 +1187,23 @@
       return false;
     }
 
+    var existingIndex = findScanIndex(cleanedBarcode);
+
+    if (existingIndex !== -1) {
+      lastScan.text = cleanedBarcode;
+      lastScan.timestamp = now;
+
+      playBadSound();
+      vibrate([120, 70, 120]);
+      flashWarning();
+      setStatus("Already scanned: " + cleanedBarcode, "warning");
+
+      return false;
+    }
+
     lastScan.text = cleanedBarcode;
     lastScan.timestamp = now;
+    lastSuccessfulScanTime = now;
 
     scans.unshift({
       barcode: cleanedBarcode,
@@ -905,12 +1212,18 @@
 
     editingIndex = null;
 
+    lastAction = {
+      type: "add",
+      barcode: cleanedBarcode
+    };
+
     saveScans();
     updateUi();
-    playBeep();
-    vibrate();
+    playGoodSound();
+    vibrate(80);
     flashSuccess();
-    setStatus("Added: " + cleanedBarcode, "success");
+    showFreezeFrame();
+    setStatus((source === "ocr" ? "OCR added: " : "Added: ") + cleanedBarcode, "success");
 
     return true;
   }
@@ -926,7 +1239,7 @@
       return;
     }
 
-    addScan(text);
+    addScan(text, "camera");
   }
 
   function onDecodeError() {
@@ -982,11 +1295,8 @@
       return;
     }
 
-    var minimum = zoomCapabilities.min;
-    var maximum = zoomCapabilities.max;
-
-    zoomOutButton.disabled = currentZoom <= minimum + 0.001;
-    zoomInButton.disabled = currentZoom >= maximum - 0.001;
+    zoomOutButton.disabled = currentZoom <= zoomCapabilities.min + 0.001;
+    zoomInButton.disabled = currentZoom >= zoomCapabilities.max - 0.001;
     zoomValueElement.textContent = currentZoom.toFixed(1) + "×";
   }
 
@@ -1032,6 +1342,24 @@
       zoomCapabilities = null;
       currentZoom = 1;
       updateZoomButtons();
+    }
+
+    try {
+      var devices = await navigator.mediaDevices.enumerateDevices();
+      cameraDevices = devices.filter(function (device) {
+        return device.kind === "videoinput";
+      });
+
+      var settings = cameraTrack.getSettings ? cameraTrack.getSettings() : null;
+
+      if (settings && settings.deviceId) {
+        currentDeviceId = settings.deviceId;
+      }
+
+      cameraButton.disabled = cameraDevices.length < 2;
+    } catch (error) {
+      cameraDevices = [];
+      cameraButton.disabled = true;
     }
   }
 
@@ -1086,9 +1414,10 @@
       return;
     }
 
-    var minimum = zoomCapabilities.min;
-    var maximum = zoomCapabilities.max;
-    var nextZoom = Math.min(maximum, Math.max(minimum, Number(value)));
+    var nextZoom = Math.min(
+      zoomCapabilities.max,
+      Math.max(zoomCapabilities.min, Number(value))
+    );
 
     try {
       await cameraTrack.applyConstraints({
@@ -1109,8 +1438,7 @@
       return;
     }
 
-    var step = zoomCapabilities.step || 0.1;
-    setZoom(currentZoom + step);
+    setZoom(currentZoom + (zoomCapabilities.step || 0.1));
   }
 
   function zoomOut() {
@@ -1118,11 +1446,36 @@
       return;
     }
 
-    var step = zoomCapabilities.step || 0.1;
-    setZoom(currentZoom - step);
+    setZoom(currentZoom - (zoomCapabilities.step || 0.1));
   }
 
-  function startCamera() {
+  function toggleGuide() {
+    scanGuideElement.classList.toggle("visible");
+    guideButton.classList.toggle("active", scanGuideElement.classList.contains("visible"));
+  }
+
+  function startNoReadReminder() {
+    stopNoReadReminder();
+
+    noReadReminderTimer = window.setInterval(function () {
+      if (!isCameraRunning || isTorchOn) {
+        return;
+      }
+
+      if (Date.now() - lastSuccessfulScanTime > 10000) {
+        setStatus("No reads yet. Try Zoom, Flash, or a different angle.", "warning");
+      }
+    }, 10000);
+  }
+
+  function stopNoReadReminder() {
+    if (noReadReminderTimer) {
+      window.clearInterval(noReadReminderTimer);
+      noReadReminderTimer = null;
+    }
+  }
+
+  function startCamera(preferredDeviceId) {
     if (isCameraRunning) {
       stopCameraIfRunning();
       return;
@@ -1151,12 +1504,24 @@
       return;
     }
 
-    var constraints = {
-      video: {
+    var videoConstraints;
+
+    if (preferredDeviceId) {
+      videoConstraints = {
+        deviceId: { exact: preferredDeviceId },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      };
+    } else {
+      videoConstraints = {
         facingMode: "environment",
         width: { ideal: 1920 },
         height: { ideal: 1080 }
-      },
+      };
+    }
+
+    var constraints = {
+      video: videoConstraints,
       audio: false
     };
 
@@ -1179,11 +1544,15 @@
       }
     ).then(function () {
       isCameraRunning = true;
+      currentDeviceId = preferredDeviceId || currentDeviceId;
+      lastSuccessfulScanTime = Date.now();
+
       hideCameraOverlay();
       setButtonsForRunningState(true);
       setStatus("Camera running. Use ＋ to zoom toward distant barcodes.");
 
       setupCameraControls();
+      startNoReadReminder();
     }).catch(function (error) {
       isCameraRunning = false;
       setButtonsForRunningState(false);
@@ -1233,6 +1602,8 @@
       return;
     }
 
+    stopNoReadReminder();
+
     if (isTorchOn && cameraTrack) {
       try {
         cameraTrack.applyConstraints({
@@ -1270,9 +1641,30 @@
     currentZoom = 1;
     setButtonsForRunningState(false);
     torchButton.disabled = true;
+    cameraButton.disabled = true;
     updateZoomButtons();
     showCameraOverlay("Camera preview will appear here");
     setStatus("Camera stopped.");
+  }
+
+  async function switchCamera() {
+    if (!isCameraRunning || cameraDevices.length < 2) {
+      return;
+    }
+
+    var currentIndex = cameraDevices.findIndex(function (device) {
+      return device.deviceId === currentDeviceId;
+    });
+
+    var nextIndex = (currentIndex + 1) % cameraDevices.length;
+    var nextDevice = cameraDevices[nextIndex];
+
+    if (!nextDevice) {
+      return;
+    }
+
+    stopCameraIfRunning();
+    startCamera(nextDevice.deviceId);
   }
 
   function exportCsv() {
@@ -1291,10 +1683,12 @@
       type: "text/csv;charset=utf-8;"
     });
 
+    var filename = "barcodes-" + formatExportTimestamp(new Date()) + ".csv";
     var url = URL.createObjectURL(blob);
     var link = document.createElement("a");
+
     link.href = url;
-    link.download = "barcodes.csv";
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1303,7 +1697,8 @@
       URL.revokeObjectURL(url);
     }, 1000);
 
-    setStatus("Exported " + scans.length + " barcode" + (scans.length === 1 ? "" : "s") + " to barcodes.csv.", "success");
+    hasUnexportedChanges = false;
+    setStatus("Exported " + scans.length + " barcode" + (scans.length === 1 ? "" : "s") + " to " + filename + ".", "success");
   }
 
   function clearScans() {
@@ -1319,8 +1714,10 @@
 
     scans = [];
     editingIndex = null;
+    lastAction = null;
     lastScan.text = null;
     lastScan.timestamp = 0;
+    hasUnexportedChanges = false;
 
     saveScans();
     updateUi();
@@ -1340,13 +1737,11 @@
       return;
     }
 
-    var added = addScan(value);
+    var added = addScan(value, "manual");
 
     if (added) {
       manualInputElement.value = "";
       manualInputElement.blur();
-    } else {
-      setStatus("That Asset ID was just added. Wait about 1.5 seconds to add it again.", "error");
     }
   }
 
@@ -1374,6 +1769,33 @@
     });
 
     return validMatches;
+  }
+
+  function showOcrChoices(candidates) {
+    ocrChoicesElement.innerHTML = "";
+    ocrChoicesElement.classList.add("visible");
+
+    candidates.forEach(function (candidate) {
+      var choiceButton = document.createElement("button");
+      choiceButton.className = "ocr-choice";
+      choiceButton.type = "button";
+      choiceButton.textContent = candidate;
+
+      choiceButton.addEventListener("click", function () {
+        manualInputElement.value = candidate;
+        manualInputElement.focus();
+        ocrChoicesElement.innerHTML = "";
+        ocrChoicesElement.classList.remove("visible");
+        setStatus("Selected " + candidate + ". Press Add to save it.", "success");
+      });
+
+      ocrChoicesElement.appendChild(choiceButton);
+    });
+  }
+
+  function hideOcrChoices() {
+    ocrChoicesElement.innerHTML = "";
+    ocrChoicesElement.classList.remove("visible");
   }
 
   async function getOcrWorker() {
@@ -1428,22 +1850,18 @@
       }
 
       if (candidates.length === 1) {
-        var added = addScan(candidates[0]);
+        var added = addScan(candidates[0], "ocr");
 
-        if (added) {
-          setStatus("OCR added: " + candidates[0], "success");
-        } else {
+        if (!added) {
           manualInputElement.value = candidates[0];
           manualInputElement.focus();
-          setStatus("OCR found " + candidates[0] + ", but it was just added.", "success");
         }
 
         return;
       }
 
-      manualInputElement.value = candidates[0];
-      manualInputElement.focus();
-      setStatus("OCR found " + candidates.length + " possible Asset IDs. Check the field, then press Add.", "success");
+      showOcrChoices(candidates);
+      setStatus("OCR found " + candidates.length + " possible Asset IDs. Tap the correct one.", "success");
     } catch (error) {
       var message = error && error.message ? error.message : String(error);
       setStatus("OCR failed: " + message, "error");
@@ -1455,11 +1873,26 @@
     }
   }
 
-  startButton.addEventListener("click", startCamera);
+  function preventSafariZoomGestures(event) {
+    event.preventDefault();
+  }
+
+  document.addEventListener("gesturestart", preventSafariZoomGestures);
+  document.addEventListener("gesturechange", preventSafariZoomGestures);
+  document.addEventListener("gestureend", preventSafariZoomGestures);
+  document.addEventListener("dblclick", preventSafariZoomGestures);
+
+  startButton.addEventListener("click", function () {
+    startCamera();
+  });
+
   exportButton.addEventListener("click", exportCsv);
   clearButton.addEventListener("click", clearScans);
+  undoButton.addEventListener("click", undoLastAction);
   addManualButton.addEventListener("click", addManualBarcode);
   torchButton.addEventListener("click", toggleTorch);
+  cameraButton.addEventListener("click", switchCamera);
+  guideButton.addEventListener("click", toggleGuide);
   zoomInButton.addEventListener("click", zoomIn);
   zoomOutButton.addEventListener("click", zoomOut);
 
@@ -1479,6 +1912,8 @@
     }
   });
 
+  searchInputElement.addEventListener("input", updateUi);
+
   manualInputElement.addEventListener("keydown", function (event) {
     if (event.key === "Enter") {
       event.preventDefault();
@@ -1487,3 +1922,33 @@
   });
 
   window.addEventListener("pagehide", stopCameraIfRunning);
+
+  window.addEventListener("beforeunload", function (event) {
+    stopCameraIfRunning();
+
+    if (hasUnexportedChanges && scans.length > 0) {
+      event.preventDefault();
+      event.returnValue = "";
+      return "";
+    }
+  });
+
+  function initialise() {
+    updateUi();
+
+    if (typeof ZXing === "undefined") {
+      setStatus("Barcode library failed to load. Manual entry and OCR may still work after reload.", "error");
+      showCameraOverlay("Library failed to load");
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initialise);
+  } else {
+    initialise();
+  }
+})();
+</script>
+
+</body>
+</html>
