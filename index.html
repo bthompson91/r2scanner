@@ -2,190 +2,98 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Barcode Scanner CSV</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Barcode CSV Scanner</title>
  
 <style>
 body {
 font-family: Arial, sans-serif;
 margin: 15px;
 }
- 
 video {
 width: 100%;
-max-height: 400px;
-background: black;
-border-radius: 10px;
+border: 1px solid #ccc;
 }
- 
 button {
 width: 100%;
 padding: 12px;
-margin-top: 10px;
-font-size: 16px;
-}
- 
-#count {
-margin: 10px 0;
-font-weight: bold;
-}
- 
-table {
-width: 100%;
-border-collapse: collapse;
-margin-top: 10px;
-}
- 
-th, td {
-border: 1px solid #ddd;
-padding: 6px;
-word-break: break-all;
-}
- 
-th {
-background: #f0f0f0;
+margin: 5px 0;
 }
 </style>
 </head>
- 
 <body>
  
 <h2>Barcode Scanner</h2>
  
-<video id="video" autoplay playsinline></video>
+<video id="video"></video>
  
-<button onclick="startScanner()">Start Scanner</button>
+<button id="startBtn">Start Scanner</button>
 <button onclick="downloadCSV()">Export CSV</button>
-<button onclick="clearScans()">Clear List</button>
  
-<div id="count">0 scans</div>
+<p>Scans: <span id="count">0</span></p>
  
-<table>
-<thead>
-<tr>
-<th>Timestamp</th>
-<th>Barcode</th>
-</tr>
-</thead>
-<tbody id="results"></tbody>
-</table>
+<ul id="results"></ul>
+ 
+<script src="https://ung/library@latestscript>
  
 <script>
-let scans = [];
+const scans = [];
 let lastScan = "";
-let detector;
-let scanning = false;
+ 
+document.getElementById("startBtn").addEventListener("click", startScanner);
  
 async function startScanner() {
- 
-if (!('BarcodeDetector' in window)) {
-alert("BarcodeDetector not supported on this device/browser.");
-return;
-}
- 
-detector = new BarcodeDetector({
-formats: [
-"qr_code",
-"code_128",
-"ean_13",
-"ean_8",
-"upc_a",
-"upc_e",
-"code_39"
-]
-});
- 
-const stream = await navigator.mediaDevices.getUserMedia({
-video: {
-facingMode: "environment"
-}
-});
- 
-const video = document.getElementById("video");
-video.srcObject = stream;
- 
-if (!scanning) {
-scanning = true;
-scanLoop();
-}
-}
- 
-async function scanLoop() {
- 
-const video = document.getElementById("video");
+const codeReader = new ZXing.BrowserMultiFormatReader();
  
 try {
-const barcodes = await detector.detect(video);
+await codeReader.decodeFromVideoDevice(
+null,
+'video',
+(result, err) => {
  
-if (barcodes.length > 0) {
-const value = barcodes[0].rawValue;
+if (result) {
  
-if (value !== lastScan) {
+const barcode = result.getText();
  
-lastScan = value;
+if (barcode !== lastScan) {
  
-const timestamp = new Date().toISOString();
+lastScan = barcode;
  
-scans.push({
-timestamp,
-barcode: value
-});
+scans.push(barcode);
  
-updateTable();
+document.getElementById("count").textContent =
+scans.length;
  
-if (navigator.vibrate) {
-navigator.vibrate(100);
-}
-}
-}
-} catch (e) {
-console.log(e);
-}
+const li = document.createElement("li");
+li.textContent = barcode;
+document.getElementById("results").appendChild(li);
  
-setTimeout(scanLoop, 300);
-}
- 
-function updateTable() {
- 
-document.getElementById("count").innerText =
-scans.length + " scans";
- 
-const tbody = document.getElementById("results");
- 
-tbody.innerHTML = scans.map(s => `
-<tr>
-<td>${s.timestamp}</td>
-<td>${s.barcode}</td>
-</tr>
-`).join('');
-}
- 
-function clearScans() {
-scans = [];
+setTimeout(() => {
 lastScan = "";
-updateTable();
+}, 1500);
+}
+}
+}
+);
+} catch (e) {
+alert("Camera error: " + e);
+}
 }
  
 function downloadCSV() {
  
-let csv = "Timestamp,Barcode\n";
+let csv = "Barcode\n";
  
-scans.forEach(s => {
-csv += `"${s.timestamp}","${s.barcode}"\n`;
+scans.forEach(code => {
+csv += `"${code}"\n`;
 });
  
-const blob = new Blob([csv], {
-type: "text/csv"
-});
+const blob = new Blob([csv], { type: 'text/csv' });
  
-const url = URL.createObjectURL(blob);
- 
-const a = document.createElement("a");
-a.href = url;
-a.download = "barcodes.csv";
-a.click();
- 
-URL.revokeObjectURL(url);
+const link = document.createElement('a');
+link.href = URL.createObjectURL(blob);
+link.download = "barcodes.csv";
+link.click();
 }
 </script>
  
