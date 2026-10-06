@@ -3,213 +3,257 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Barcode Scanner CSV</title>
+<title>Barcode Scanner</title>
  
 <style>
 body {
 font-family: -apple-system, BlinkMacSystemFont, sans-serif;
 margin: 0;
+padding: 15px;
+background: #f2f2f7;
+}
+ 
+.container {
+max-width: 800px;
+margin: auto;
+}
+ 
+.card {
+background: white;
+border-radius: 12px;
 padding: 16px;
-background: #f5f5f5;
+margin-bottom: 12px;
 }
  
 h1 {
 margin-top: 0;
 }
  
-video {
-width: 100%;
-background: #000;
-border-radius: 12px;
-}
- 
-.card {
-background: white;
-padding: 16px;
-border-radius: 12px;
-margin-bottom: 16px;
-}
- 
 button {
 width: 100%;
 padding: 14px;
 margin-top: 8px;
+font-size: 16px;
 border: none;
 border-radius: 10px;
-background: #007aff;
-color: white;
-font-size: 16px;
 cursor: pointer;
 }
  
-button.secondary {
-background: #666;
+.start {
+background: #007aff;
+color: white;
 }
  
-button.danger {
-background: #d70015;
+.export {
+background: #34c759;
+color: white;
 }
  
-.stats {
-font-size: 18px;
-font-weight: bold;
-margin-bottom: 10px;
+.clear {
+background: #ff3b30;
+color: white;
 }
  
-#status {
-margin-top: 10px;
-color: #666;
-}
- 
-#scans {
-max-height: 300px;
-overflow-y: auto;
+#reader {
+width: 100%;
 }
  
 .scan {
 padding: 8px;
-border-bottom: 1px solid #eee;
+border-bottom: 1px solid #ddd;
 word-break: break-all;
 }
-</style>
-</head>
  
+.count {
+font-weight: bold;
+margin-bottom: 10px;
+}
+ 
+.status {
+margin-top: 10px;
+color: #666;
+}
+</style>
+ 
+<script src="https://unpkg.com/html5-qrcoded>
 <body>
+ 
+<div class="container">
  
 <div class="card">
 <h1>Barcode Scanner</h1>
  
-<video id="video" playsinline></video>
+<div id="reader"></div>
  
-<button id="startBtn">Start Camera</button>
-<button id="exportBtn" class="secondary">Export CSV</button>
-<button id="clearBtn" class="danger">Clear All Scans</button>
+<button class="start" onclick="startScanning()">
+Start Scanner
+</button>
  
-<div id="status">Ready</div>
+<button class="export" onclick="exportCSV()">
+Export CSV
+</button>
+ 
+<button class="clear" onclick="clearScans()">
+Clear Scans
+</button>
+ 
+<div class="status" id="status">
+Ready
+</div>
 </div>
  
 <div class="card">
-<div class="stats">
-Scans: <span id="count">0</span>
+<div class="count">
+Total Scans:
+<span id="count">0</span>
 </div>
  
-<div id="scans"></div>
+<div id="scanList"></div>
 </div>
  
-https://unpkg.com/@zxing/library@latestscript>
+</div>
  
 <script>
 const STORAGE_KEY = "barcode_scans";
  
-let scans = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+let scans = JSON.parse(
+localStorage.getItem(STORAGE_KEY) || "[]"
+);
  
-let codeReader;
-let lastBarcode = "";
-let lastScanTime = 0;
- 
-const countEl = document.getElementById("count");
-const scansEl = document.getElementById("scans");
-const statusEl = document.getElementById("status");
+let scanner = null;
+let lastScan = "";
+let lastTime = 0;
  
 function saveScans() {
-localStorage.setItem(STORAGE_KEY, JSON.stringify(scans));
+localStorage.setItem(
+STORAGE_KEY,
+JSON.stringify(scans)
+);
 }
  
-function refreshList() {
-countEl.textContent = scans.length;
+function refreshDisplay() {
  
-scansEl.innerHTML = scans
-.slice()
-.reverse()
-.map(code => `<div class="scan">${code}</div>`)
-.join("");
+document.getElementById("count").textContent =
+scans.length;
+ 
+document.getElementById("scanList").innerHTML =
+scans.slice().reverse().map(code =>
+`<div class="scan">${code}</div>`
+).join("");
 }
  
-refreshList();
+refreshDisplay();
  
-document.getElementById("startBtn").addEventListener("click", async () => {
+function addScan(code) {
  
-try {
- 
-statusEl.textContent = "Starting camera...";
- 
-codeReader = new ZXing.BrowserMultiFormatReader();
- 
-await codeReader.decodeFromVideoDevice(
-null,
-"video",
-(result, err) => {
- 
-if (!result) return;
- 
-const barcode = result.getText();
 const now = Date.now();
  
 if (
-barcode === lastBarcode &&
-now - lastScanTime < 1500
+code === lastScan &&
+now - lastTime < 1500
 ) {
 return;
 }
  
-lastBarcode = barcode;
-lastScanTime = now;
+lastScan = code;
+lastTime = now;
  
-scans.push(barcode);
+scans.push(code);
  
 saveScans();
-refreshList();
+refreshDisplay();
  
-statusEl.textContent =
-"Last scan: " + barcode;
+document.getElementById("status").textContent =
+"Last scan: " + code;
  
 if (navigator.vibrate) {
 navigator.vibrate(100);
 }
 }
+ 
+async function startScanning() {
+ 
+if (scanner) {
+return;
+}
+ 
+scanner = new Html5Qrcode("reader");
+ 
+try {
+ 
+const cameras =
+await Html5Qrcode.getCameras();
+ 
+if (!cameras.length) {
+throw new Error("No camera found");
+}
+ 
+const rearCamera =
+cameras[cameras.length - 1].id;
+ 
+await scanner.start(
+rearCamera,
+{
+fps: 10,
+qrbox: { width: 250, height: 250 }
+},
+decodedText => addScan(decodedText)
 );
  
-} catch (e) {
-statusEl.textContent = "Error: " + e.message;
-}
-});
+document.getElementById("status").textContent =
+"Scanner running";
  
-document.getElementById("exportBtn").addEventListener("click", () => {
+} catch (e) {
+ 
+document.getElementById("status").textContent =
+e.message;
+}
+}
+ 
+function exportCSV() {
  
 let csv = "Barcode\n";
  
 scans.forEach(code => {
-csv += `"${code.replace(/"/g, '""')}"\n`;
+csv += `"${code.replaceAll('"', '""')}"\n`;
 });
  
 const blob = new Blob(
 [csv],
-{ type: "text/csv;charset=utf-8;" }
+{
+type: "text/csv;charset=utf-8"
+}
 );
  
-const url = URL.createObjectURL(blob);
+const url =
+URL.createObjectURL(blob);
  
 const a = document.createElement("a");
+ 
 a.href = url;
 a.download = "barcodes.csv";
+ 
 document.body.appendChild(a);
 a.click();
- 
 document.body.removeChild(a);
+ 
 URL.revokeObjectURL(url);
-});
+}
  
-document.getElementById("clearBtn").addEventListener("click", () => {
+function clearScans() {
  
-if (!confirm("Delete all scanned barcodes?")) {
+if (!confirm("Delete all scans?")) {
 return;
 }
  
 scans = [];
+ 
 saveScans();
-refreshList();
-statusEl.textContent = "Scans cleared";
-});
+refreshDisplay();
+ 
+document.getElementById("status").textContent =
+"Scans cleared";
+}
 </script>
  
 </body>
