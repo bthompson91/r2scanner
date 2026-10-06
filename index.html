@@ -1,3 +1,699 @@
-<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Barcode CSV Scanner</title><script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script><style>body{margin:0;font-family:-apple-system,sans-serif;background:#f2f2f7}#toolbar{position:sticky;top:0;background:#fff;padding:10px;display:flex;gap:8px;z-index:1000;box-shadow:0 2px 8px rgba(0,0,0,.1)}button{flex:1;padding:14px;border:none;border-radius:10px;font-size:16px}#start{background:#007aff;color:#fff}#export{background:#34c759;color:#fff}#clear{background:#ff3b30;color:#fff}.wrap{padding:12px}.count{font-size:28px;font-weight:700;margin:10px 0}#reader{overflow:hidden;border-radius:12px;background:#000}#status{margin:8px 0;color:#555}.scan{background:#fff;margin:4px 0;padding:10px;border-radius:8px;word-break:break-all}</style></head><body><div id="toolbar"><button id="start" onclick="startScanner()">Start Camera</button><button id="export" onclick="exportCSV()">Export CSV</button><button id="clear" onclick="clearScans()">Clear</button></div><div class="wrap"><div class="count">Scans: <span id="count">0</span></div><div id="status">Ready</div><div id="reader"></div><div id="list"></div></div><script>let scans=JSON.parse(localStorage.getItem('barcode_scans')||'[]');let scanner=null,last='',lastTime=0;function save(){localStorage.setItem('barcode_scans',JSON.stringify(scans));}function render(){count.textContent=scans.length;list.innerHTML=scans.slice().reverse().map(s=>'<div class="scan">'+s+'</div>').join('');}render();async function startScanner(){if(scanner)return;try{status.textContent='Starting camera...';const cams=await Html5Qrcode.getCameras();if(!cams.length)throw new Error('No camera found');const cam=cams[0];scanner=new Html5Qrcode('reader');await scanner.start(cam.id,{fps:15,qrbox:{width:280,height:280}},txt=>{const now=Date.now();if(txt===last&&now-lastTime<1500)return;last=txt;lastTime=now;scans.push(txt);save();render();status.textContent='Last scan: '+txt;if(navigator.vibrate)navigator.vibrate(100);});status.textContent='Scanner running';}catch(e){status.textContent='Error: '+e.message;}}function exportCSV(){let csv='Barcode
-'+scans.map(x=>'"'+x.replaceAll('"','""')+'"').join('
-');const b=new Blob([csv],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='barcodes.csv';a.click();}function clearScans(){if(confirm('Clear all scans?')){scans=[];save();render();}}</script></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0b1220">
+<title>Barcode Scanner</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b1220;
+    --panel: #121a2b;
+    --panel-2: #182238;
+    --text: #eaf0ff;
+    --muted: #9aa8c7;
+    --accent: #2f81f7;
+    --success: #22c55e;
+    --danger: #ef4444;
+    --border: #26314a;
+  }
+
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Arial, sans-serif;
+  }
+
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(11, 18, 32, 0.94);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    backdrop-filter: saturate(180%) blur(14px);
+    border-bottom: 1px solid var(--border);
+    padding: calc(env(safe-area-inset-top) + 10px) 12px 12px;
+  }
+
+  .toolbar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .counter {
+    min-width: 76px;
+    text-align: center;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 8px 10px;
+  }
+
+  .counter-value {
+    display: block;
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .counter-label {
+    display: block;
+    margin-top: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .toolbar-buttons {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    flex: 1;
+  }
+
+  .button {
+    appearance: none;
+    border: 0;
+    border-radius: 14px;
+    min-height: 52px;
+    padding: 12px 14px;
+    font-size: 17px;
+    font-weight: 700;
+    color: white;
+    background: var(--accent);
+    cursor: pointer;
+    transition: transform 0.08s ease, opacity 0.15s ease;
+  }
+
+  .button:active {
+    transform: scale(0.98);
+  }
+
+  .button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .button.secondary {
+    background: #334155;
+  }
+
+  .button.danger {
+    background: #7f1d1d;
+  }
+
+  .button.success {
+    background: var(--success);
+  }
+
+  .toolbar-buttons.two {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .status {
+    margin-top: 10px;
+    min-height: 22px;
+    font-size: 14px;
+    line-height: 1.35;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .status.error {
+    color: #fca5a5;
+    font-weight: 600;
+  }
+
+  .status.success {
+    color: #86efac;
+    font-weight: 700;
+  }
+
+  main {
+    padding: 12px;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  .camera-card {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    overflow: hidden;
+    margin-bottom: 14px;
+  }
+
+  #reader {
+    width: 100%;
+    min-height: 240px;
+    background: black;
+  }
+
+  #reader video {
+    width: 100% !important;
+    height: auto !important;
+    display: block;
+    border-radius: 0;
+  }
+
+  #reader img[alt="Info icon"] {
+    display: none;
+  }
+
+  .camera-overlay {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.72);
+    text-align: center;
+    padding: 20px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .camera-overlay.visible {
+    display: flex;
+  }
+
+  .scan-flash {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: rgba(34, 197, 94, 0.32);
+    border: 4px solid var(--success);
+    opacity: 0;
+    transition: opacity 0.12s ease;
+  }
+
+  .scan-flash.active {
+    opacity: 1;
+  }
+
+  .section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 4px 2px 8px;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+  }
+
+  .section-title span:last-child {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  .scan-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+  }
+
+  .scan-item {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .scan-code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 18px;
+    font-weight: 700;
+    word-break: break-all;
+  }
+
+  .scan-time {
+    color: var(--muted);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .empty {
+    background: var(--panel);
+    border: 1px dashed var(--border);
+    border-radius: 14px;
+    padding: 22px 16px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 15px;
+  }
+
+  @media (min-width: 640px) {
+    .toolbar-row {
+      align-items: stretch;
+    }
+
+    .toolbar-buttons {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+
+    .toolbar-buttons.two {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    #reader {
+      min-height: 360px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<header class="toolbar">
+  <div class="toolbar-row">
+    <div class="counter">
+      <span class="counter-value" id="scanCount">0</span>
+      <span class="counter-label">Scans</span>
+    </div>
+
+    <div class="toolbar-buttons" id="toolbarButtons">
+      <button class="button" id="startButton" type="button">Start Camera</button>
+      <button class="button secondary" id="exportButton" type="button" disabled>Export CSV</button>
+      <button class="button danger" id="clearButton" type="button" disabled>Clear Scans</button>
+    </div>
+  </div>
+
+  <div class="status" id="status">Camera is off. Press Start Camera to begin.</div>
+</header>
+
+<main>
+  <section class="camera-card">
+    <div id="reader"></div>
+    <div class="camera-overlay" id="cameraOverlay">Camera preview will appear here</div>
+    <div class="scan-flash" id="scanFlash"></div>
+  </section>
+
+  <section>
+    <div class="section-title">
+      <span>Scanned Barcodes</span>
+      <span>Newest first</span>
+    </div>
+
+    <ul class="scan-list" id="scanList"></ul>
+    <div class="empty" id="emptyState">No barcodes scanned yet.</div>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORAGE_KEY = "barcode-scanner-scans-v1";
+  var DUPLICATE_SUPPRESSION_MS = 1500;
+
+  var scanner = null;
+  var isCameraRunning = false;
+  var lastScan = {
+    text: null,
+    timestamp: 0
+  };
+
+  var startButton = document.getElementById("startButton");
+  var exportButton = document.getElementById("exportButton");
+  var clearButton = document.getElementById("clearButton");
+  var statusElement = document.getElementById("status");
+  var scanCountElement = document.getElementById("scanCount");
+  var scanListElement = document.getElementById("scanList");
+  var emptyStateElement = document.getElementById("emptyState");
+  var cameraOverlayElement = document.getElementById("cameraOverlay");
+  var scanFlashElement = document.getElementById("scanFlash");
+  var readerElement = document.getElementById("reader");
+
+  var scans = loadScans();
+
+  function loadScans() {
+    try {
+      var stored = localStorage.getItem(STORAGE_KEY);
+      if (!stored) {
+        return [];
+      }
+
+      var parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+
+      return parsed.filter(function (item) {
+        return item && typeof item.barcode === "string" && typeof item.timestamp === "number";
+      }).map(function (item) {
+        return {
+          barcode: item.barcode,
+          timestamp: item.timestamp
+        };
+      });
+    } catch (error) {
+      return [];
+    }
+  }
+
+  function saveScans() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(scans));
+    } catch (error) {
+      setStatus("Could not save scans locally. Storage may be full or restricted.", "error");
+    }
+  }
+
+  function setStatus(message, type) {
+    statusElement.textContent = message;
+    statusElement.className = "status";
+
+    if (type) {
+      statusElement.classList.add(type);
+    }
+  }
+
+  function formatTime(timestamp) {
+    var date = new Date(timestamp);
+    var hours = String(date.getHours()).padStart(2, "0");
+    var minutes = String(date.getMinutes()).padStart(2, "0");
+    var seconds = String(date.getSeconds()).padStart(2, "0");
+    return hours + ":" + minutes + ":" + seconds;
+  }
+
+  function updateUi() {
+    scanCountElement.textContent = String(scans.length);
+    scanListElement.innerHTML = "";
+
+    if (scans.length === 0) {
+      emptyStateElement.style.display = "block";
+      exportButton.disabled = true;
+      clearButton.disabled = true;
+      return;
+    }
+
+    emptyStateElement.style.display = "none";
+    exportButton.disabled = false;
+    clearButton.disabled = false;
+
+    scans.forEach(function (scan) {
+      var listItem = document.createElement("li");
+      listItem.className = "scan-item";
+
+      var codeElement = document.createElement("div");
+      codeElement.className = "scan-code";
+      codeElement.textContent = scan.barcode;
+
+      var timeElement = document.createElement("div");
+      timeElement.className = "scan-time";
+      timeElement.textContent = formatTime(scan.timestamp);
+
+      listItem.appendChild(codeElement);
+      listItem.appendChild(timeElement);
+      scanListElement.appendChild(listItem);
+    });
+  }
+
+  function vibrate() {
+    if (navigator.vibrate) {
+      try {
+        navigator.vibrate(80);
+      } catch (error) {
+        // Vibration is optional and may be unsupported.
+      }
+    }
+  }
+
+  function flashSuccess() {
+    scanFlashElement.classList.add("active");
+    window.setTimeout(function () {
+      scanFlashElement.classList.remove("active");
+    }, 180);
+  }
+
+  function addScan(barcode) {
+    var now = Date.now();
+
+    if (
+      lastScan.text === barcode &&
+      now - lastScan.timestamp < DUPLICATE_SUPPRESSION_MS
+    ) {
+      return;
+    }
+
+    lastScan.text = barcode;
+    lastScan.timestamp = now;
+
+    scans.unshift({
+      barcode: barcode,
+      timestamp: now
+    });
+
+    saveScans();
+    updateUi();
+    vibrate();
+    flashSuccess();
+    setStatus("Scanned: " + barcode, "success");
+  }
+
+  function onScanSuccess(decodedText, decodedResult) {
+    if (typeof decodedText !== "string" || decodedText.length === 0) {
+      return;
+    }
+
+    addScan(decodedText);
+  }
+
+  function onScanFailure(error) {
+    // Continuous scanning produces frequent "no code found" messages.
+    // These are normal and should not replace useful status information.
+  }
+
+  function showCameraOverlay(message) {
+    cameraOverlayElement.textContent = message;
+    cameraOverlayElement.classList.add("visible");
+  }
+
+  function hideCameraOverlay() {
+    cameraOverlayElement.classList.remove("visible");
+  }
+
+  function setButtonsForRunningState(running) {
+    startButton.disabled = running;
+    startButton.textContent = running ? "Camera Running" : "Start Camera";
+    startButton.classList.toggle("success", running);
+  }
+
+  function startCamera() {
+    if (isCameraRunning) {
+      return;
+    }
+
+    if (typeof Html5Qrcode === "undefined") {
+      setStatus("Library failed to load. Check your internet connection and reload the page.", "error");
+      return;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setStatus("No camera available. This browser or device does not support camera access.", "error");
+      return;
+    }
+
+    setStatus("Requesting camera permission…");
+    showCameraOverlay("Requesting camera permission…");
+
+    try {
+      scanner = new Html5Qrcode("reader", {
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.QR_CODE
+        ],
+        verbose: false
+      });
+    } catch (error) {
+      scanner = null;
+      setStatus("Scanner failed to start: " + (error && error.message ? error.message : "Unknown error"), "error");
+      showCameraOverlay("Scanner failed to start");
+      return;
+    }
+
+    var cameraConfig = {
+      facingMode: "environment"
+    };
+
+    var scanConfig = {
+      fps: 10,
+      qrbox: function (viewfinderWidth, viewfinderHeight) {
+        var edge = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.75);
+        return {
+          width: edge,
+          height: Math.floor(edge * 0.6)
+        };
+      },
+      aspectRatio: 1.333333,
+      disableFlip: false
+    };
+
+    scanner.start(
+      cameraConfig,
+      scanConfig,
+      onScanSuccess,
+      onScanFailure
+    ).then(function () {
+      isCameraRunning = true;
+      hideCameraOverlay();
+      setButtonsForRunningState(true);
+      setStatus("Camera running. Point it at a barcode.");
+    }).catch(function (error) {
+      isCameraRunning = false;
+      setButtonsForRunningState(false);
+      showCameraOverlay("Camera unavailable");
+
+      var message = error && error.message ? error.message : String(error);
+
+      if (
+        message.toLowerCase().indexOf("permission") !== -1 ||
+        message.toLowerCase().indexOf("denied") !== -1 ||
+        message.toLowerCase().indexOf("notallowed") !== -1
+      ) {
+        setStatus("Camera permission denied. Allow camera access in Safari settings, then try again.", "error");
+      } else if (
+        message.toLowerCase().indexOf("notfound") !== -1 ||
+        message.toLowerCase().indexOf("no camera") !== -1 ||
+        message.toLowerCase().indexOf("no cameras") !== -1
+      ) {
+        setStatus("No camera available.", "error");
+      } else {
+        setStatus("Scanner failed to start: " + message, "error");
+      }
+
+      if (scanner) {
+        try {
+          scanner.clear();
+        } catch (clearError) {
+          // Ignore cleanup errors.
+        }
+        scanner = null;
+      }
+    });
+  }
+
+  function stopCameraIfRunning() {
+    if (!scanner || !isCameraRunning) {
+      return;
+    }
+
+    scanner.stop().then(function () {
+      isCameraRunning = false;
+      setButtonsForRunningState(false);
+      showCameraOverlay("Camera preview will appear here");
+
+      try {
+        scanner.clear();
+      } catch (error) {
+        // Ignore cleanup errors.
+      }
+
+      scanner = null;
+      setStatus("Camera stopped.");
+    }).catch(function (error) {
+      isCameraRunning = false;
+      setButtonsForRunningState(false);
+      setStatus("Camera stopped with an error: " + (error && error.message ? error.message : "Unknown error"), "error");
+    });
+  }
+
+  function exportCsv() {
+    if (scans.length === 0) {
+      setStatus("No scans to export.", "error");
+      return;
+    }
+
+    var csvContent = "Barcode\n";
+
+    scans.forEach(function (scan) {
+      csvContent += scan.barcode + "\n";
+    });
+
+    var blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;"
+    });
+
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement("a");
+    link.href = url;
+    link.download = "barcodes.csv";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    window.setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 1000);
+
+    setStatus("Exported " + scans.length + " barcode" + (scans.length === 1 ? "" : "s") + " to barcodes.csv.", "success");
+  }
+
+  function clearScans() {
+    if (scans.length === 0) {
+      return;
+    }
+
+    var confirmed = window.confirm("Clear all " + scans.length + " scanned barcodes? This cannot be undone.");
+
+    if (!confirmed) {
+      return;
+    }
+
+    scans = [];
+    lastScan.text = null;
+    lastScan.timestamp = 0;
+
+    saveScans();
+    updateUi();
+    setStatus("All scans cleared.");
+  }
+
+  startButton.addEventListener("click", startCamera);
+  exportButton.addEventListener("click", exportCsv);
+  clearButton.addEventListener("click", clearScans);
+  window.addEventListener("pagehide", stopCameraIfRunning);
+  window.addEventListener("beforeunload", stopCameraIfRunning);
+
+  if (typeof Html5Qrcode === "undefined") {
+    setStatus("Library failed to load. Check your internet connection and reload the page.", "error");
+    showCameraOverlay("Library failed to load");
+  } else {
+    updateUi();
+  }
+})();
+</script>
+
+</body>
+</html>
