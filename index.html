@@ -326,7 +326,7 @@
   </section>
 
   <div class="hint">
-    Hold the barcode roughly 10–25 cm away and keep it flat and well lit. The scanner now examines the full camera image, so you do not need to align it inside a small box. For long shelf labels, rotate the phone sideways if needed.
+    Hold the barcode roughly 10–25 cm away and keep it flat and well lit. The scanner examines the full camera image, so you do not need to align it inside a small box. For long shelf labels, rotate the phone sideways if needed.
   </div>
 
   <section>
@@ -621,9 +621,11 @@
     }
 
     var cameraConfig = {
-      facingMode: "environment",
-      width: { ideal: 1920 },
-      height: { ideal: 1080 }
+      videoConstraints: {
+        facingMode: "environment",
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      }
     };
 
     var scanConfig = {
