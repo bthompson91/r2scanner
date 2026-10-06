@@ -85,6 +85,29 @@
     letter-spacing: 0.02em;
   }
 
+  .metadata-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+
+  .metadata-input {
+    min-width: 0;
+    min-height: 40px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #0e1626;
+    color: var(--text);
+    font-size: 14px;
+    padding: 0 10px;
+  }
+
+  .metadata-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
   .toolbar-row {
     display: flex;
     align-items: center;
@@ -572,9 +595,34 @@
 
 <header class="toolbar">
   <div class="toolbar-top">
-    <span class="version">v0.8</span>
+    <span class="version">v0.9</span>
     <span class="app-title">Barcode Scanner</span>
     <span></span>
+  </div>
+
+  <div class="metadata-row">
+    <input
+      class="metadata-input"
+      id="venueInput"
+      type="text"
+      autocomplete="off"
+      autocorrect="off"
+      autocapitalize="words"
+      spellcheck="false"
+      placeholder="Venue"
+      aria-label="Venue"
+    >
+    <input
+      class="metadata-input"
+      id="transferInput"
+      type="text"
+      autocomplete="off"
+      autocorrect="off"
+      autocapitalize="characters"
+      spellcheck="false"
+      placeholder="Transfer number"
+      aria-label="Transfer number"
+    >
   </div>
 
   <div class="toolbar-row">
@@ -640,7 +688,7 @@
   </section>
 
   <div class="hint">
-    Use ＋ to zoom toward distant barcodes, ⚡ for flash, CAM to change lens, and ⊞ to toggle the scan guide. Duplicate Asset IDs are not added; you will hear a warning sound.
+    Use ＋ to zoom toward distant barcodes, ⚡ for flash, CAM to change lens, and ⊞ to toggle the scan guide. Venue and transfer number are included in the exported filename.
   </div>
 
   <section>
@@ -672,8 +720,9 @@
 (function () {
   "use strict";
 
-  var APP_VERSION = "v0.8";
+  var APP_VERSION = "v0.9";
   var STORAGE_KEY = "barcode-scanner-scans-v1";
+  var METADATA_STORAGE_KEY = "barcode-scanner-metadata-v1";
   var DUPLICATE_SUPPRESSION_MS = 1500;
 
   var codeReader = null;
@@ -717,6 +766,8 @@
   var zoomInButton = document.getElementById("zoomInButton");
   var zoomOutButton = document.getElementById("zoomOutButton");
   var zoomValueElement = document.getElementById("zoomValue");
+  var venueInputElement = document.getElementById("venueInput");
+  var transferInputElement = document.getElementById("transferInput");
   var manualInputElement = document.getElementById("manualInput");
   var addManualButton = document.getElementById("addManualButton");
   var ocrButton = document.getElementById("ocrButton");
@@ -725,6 +776,7 @@
   var searchInputElement = document.getElementById("searchInput");
 
   var scans = loadScans();
+  var metadata = loadMetadata();
 
   function loadScans() {
     try {
@@ -752,6 +804,39 @@
       });
     } catch (error) {
       return [];
+    }
+  }
+
+  function loadMetadata() {
+    try {
+      var stored = localStorage.getItem(METADATA_STORAGE_KEY);
+
+      if (!stored) {
+        return {
+          venue: "",
+          transfer: ""
+        };
+      }
+
+      var parsed = JSON.parse(stored);
+
+      return {
+        venue: typeof parsed.venue === "string" ? parsed.venue : "",
+        transfer: typeof parsed.transfer === "string" ? parsed.transfer : ""
+      };
+    } catch (error) {
+      return {
+        venue: "",
+        transfer: ""
+      };
+    }
+  }
+
+  function saveMetadata() {
+    try {
+      localStorage.setItem(METADATA_STORAGE_KEY, JSON.stringify(metadata));
+    } catch (error) {
+      // Metadata saving is non-critical.
     }
   }
 
@@ -792,6 +877,34 @@
     return year + "-" + month + "-" + day + "-" + hours + minutes + seconds;
   }
 
+  function makeFilenameSafe(value) {
+    return String(value || "")
+      .trim()
+      .replace(/[\\/:*?"<>|]+/g, "-")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+  }
+
+  function buildExportFilename() {
+    var venue = makeFilenameSafe(venueInputElement.value);
+    var transfer = makeFilenameSafe(transferInputElement.value);
+    var timestamp = formatExportTimestamp(new Date());
+    var filename = "barcodes";
+
+    if (venue) {
+      filename += "-" + venue;
+    }
+
+    if (transfer) {
+      filename += "-" + transfer;
+    }
+
+    filename += "-" + timestamp + ".csv";
+
+    return filename;
+  }
+
   function findScanIndex(barcode) {
     for (var i = 0; i < scans.length; i++) {
       if (scans[i].barcode === barcode) {
@@ -810,6 +923,7 @@
 
     if (scans.length === 0) {
       emptyStateElement.style.display = "block";
+      emptyStateElement.textContent = "No barcodes scanned yet.";
       exportButton.disabled = true;
       clearButton.disabled = true;
       return;
@@ -1682,7 +1796,7 @@
       type: "text/csv;charset=utf-8;"
     });
 
-    var filename = "barcodes-" + formatExportTimestamp(new Date()) + ".csv";
+    var filename = buildExportFilename();
     var url = URL.createObjectURL(blob);
     var link = document.createElement("a");
 
@@ -1783,8 +1897,7 @@
       choiceButton.addEventListener("click", function () {
         manualInputElement.value = candidate;
         manualInputElement.focus();
-        ocrChoicesElement.innerHTML = "";
-        ocrChoicesElement.classList.remove("visible");
+        hideOcrChoices();
         setStatus("Selected " + candidate + ". Press Add to save it.", "success");
       });
 
@@ -1913,6 +2026,16 @@
 
   searchInputElement.addEventListener("input", updateUi);
 
+  venueInputElement.addEventListener("input", function () {
+    metadata.venue = venueInputElement.value;
+    saveMetadata();
+  });
+
+  transferInputElement.addEventListener("input", function () {
+    metadata.transfer = transferInputElement.value;
+    saveMetadata();
+  });
+
   manualInputElement.addEventListener("keydown", function (event) {
     if (event.key === "Enter") {
       event.preventDefault();
@@ -1933,6 +2056,9 @@
   });
 
   function initialise() {
+    venueInputElement.value = metadata.venue;
+    transferInputElement.value = metadata.transfer;
+
     updateUi();
 
     if (typeof ZXing === "undefined") {
