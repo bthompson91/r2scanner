@@ -49,28 +49,28 @@
     -webkit-backdrop-filter: saturate(180%) blur(14px);
     backdrop-filter: saturate(180%) blur(14px);
     border-bottom: 1px solid var(--border);
-    padding: calc(env(safe-area-inset-top) + 10px) 12px 12px;
+    padding: calc(env(safe-area-inset-top) + 8px) 10px 10px;
   }
 
   .toolbar-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
 
   .version {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
     color: var(--muted);
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 999px;
-    padding: 3px 8px;
+    padding: 2px 7px;
   }
 
   .app-title {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 800;
     letter-spacing: 0.02em;
   }
@@ -78,29 +78,29 @@
   .toolbar-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
   }
 
   .counter {
-    min-width: 76px;
+    min-width: 58px;
     text-align: center;
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 8px 10px;
+    border-radius: 12px;
+    padding: 5px 6px;
   }
 
   .counter-value {
     display: block;
-    font-size: 26px;
+    font-size: 20px;
     font-weight: 800;
     line-height: 1;
   }
 
   .counter-label {
     display: block;
-    margin-top: 3px;
-    font-size: 10px;
+    margin-top: 2px;
+    font-size: 8px;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -109,23 +109,24 @@
 
   .toolbar-buttons {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 8px;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
     flex: 1;
   }
 
   .button {
     appearance: none;
     border: 0;
-    border-radius: 14px;
-    min-height: 52px;
-    padding: 12px 14px;
-    font-size: 17px;
+    border-radius: 12px;
+    min-height: 44px;
+    padding: 8px 8px;
+    font-size: 13px;
     font-weight: 700;
     color: white;
     background: var(--accent);
     cursor: pointer;
     transition: transform 0.08s ease, opacity 0.15s ease;
+    white-space: nowrap;
   }
 
   .button:active {
@@ -158,15 +159,11 @@
     color: #1f1300;
   }
 
-  .toolbar-buttons.two {
-    grid-template-columns: 1fr 1fr;
-  }
-
   .status {
-    margin-top: 10px;
-    min-height: 22px;
-    font-size: 14px;
-    line-height: 1.35;
+    margin-top: 7px;
+    min-height: 18px;
+    font-size: 12px;
+    line-height: 1.3;
     color: var(--muted);
     text-align: center;
   }
@@ -182,23 +179,54 @@
   }
 
   main {
-    padding: 12px;
+    padding: 10px;
     max-width: 720px;
     margin: 0 auto;
+  }
+
+  .manual-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 8px;
+    margin-bottom: 10px;
+  }
+
+  .manual-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .manual-input {
+    flex: 1;
+    min-width: 0;
+    min-height: 44px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #0e1626;
+    color: var(--text);
+    font-size: 16px;
+    padding: 0 10px;
+  }
+
+  .manual-input:focus {
+    outline: none;
+    border-color: var(--accent);
   }
 
   .camera-card {
     position: relative;
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 18px;
+    border-radius: 14px;
     overflow: hidden;
-    margin-bottom: 14px;
+    margin-bottom: 10px;
   }
 
   #camera {
     width: 100%;
-    min-height: 300px;
+    min-height: 260px;
     background: black;
     display: block;
     object-fit: cover;
@@ -212,8 +240,8 @@
     justify-content: center;
     background: rgba(0, 0, 0, 0.72);
     text-align: center;
-    padding: 20px;
-    font-size: 16px;
+    padding: 16px;
+    font-size: 15px;
     font-weight: 600;
   }
 
@@ -238,8 +266,8 @@
   .camera-controls {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 10px;
-    padding: 12px;
+    gap: 8px;
+    padding: 8px;
     background: var(--panel);
     border-top: 1px solid var(--border);
   }
@@ -247,7 +275,7 @@
   .zoom-row {
     display: none;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
   }
 
   .zoom-row.visible {
@@ -255,7 +283,7 @@
   }
 
   .zoom-label {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     color: var(--muted);
     white-space: nowrap;
@@ -263,76 +291,33 @@
 
   .zoom-slider {
     flex: 1;
-    min-height: 36px;
+    min-height: 30px;
     accent-color: var(--accent);
   }
 
   .hint {
-    margin: -6px 0 14px;
-    padding: 10px 12px;
+    margin: -4px 0 10px;
+    padding: 8px 10px;
     background: var(--panel-2);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: 10px;
     color: var(--muted);
-    font-size: 13px;
-    line-height: 1.4;
-  }
-
-  .manual-card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 12px;
-    margin-bottom: 16px;
-  }
-
-  .manual-title {
-    margin: 0 0 10px;
-    font-size: 14px;
-    font-weight: 800;
-  }
-
-  .manual-row {
-    display: flex;
-    gap: 8px;
-  }
-
-  .manual-input {
-    flex: 1;
-    min-width: 0;
-    min-height: 52px;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    background: #0e1626;
-    color: var(--text);
-    font-size: 17px;
-    padding: 0 14px;
-  }
-
-  .manual-input:focus {
-    outline: none;
-    border-color: var(--accent);
-  }
-
-  .manual-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin-top: 8px;
+    font-size: 11px;
+    line-height: 1.35;
   }
 
   .section-title {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin: 4px 2px 8px;
-    font-size: 15px;
+    margin: 2px 2px 6px;
+    font-size: 13px;
     font-weight: 800;
     letter-spacing: 0.02em;
   }
 
   .section-title span:last-child {
-    font-size: 12px;
+    font-size: 10px;
     color: var(--muted);
     font-weight: 600;
   }
@@ -342,58 +327,106 @@
     margin: 0;
     padding: 0;
     display: grid;
-    gap: 8px;
+    gap: 6px;
   }
 
   .scan-item {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 12px 14px;
+    border-radius: 12px;
+    padding: 8px 10px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+    gap: 8px;
+  }
+
+  .scan-details {
+    flex: 1;
+    min-width: 0;
   }
 
   .scan-code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 18px;
+    font-size: 15px;
     font-weight: 700;
     word-break: break-all;
   }
 
   .scan-time {
     color: var(--muted);
-    font-size: 12px;
+    font-size: 10px;
     white-space: nowrap;
+  }
+
+  .scan-actions {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .icon-button {
+    appearance: none;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text);
+    border-radius: 10px;
+    width: 36px;
+    height: 36px;
+    font-size: 15px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .icon-button:active {
+    transform: scale(0.95);
+  }
+
+  .icon-button.delete {
+    color: #fca5a5;
+    border-color: #7f1d1d;
+    background: #2a1215;
+  }
+
+  .icon-button.save {
+    color: #86efac;
+    border-color: #14532d;
+    background: #0f2417;
+  }
+
+  .edit-input {
+    flex: 1;
+    min-width: 0;
+    min-height: 36px;
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    background: #0e1626;
+    color: var(--text);
+    font-size: 15px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-weight: 700;
+    padding: 0 8px;
   }
 
   .empty {
     background: var(--panel);
     border: 1px dashed var(--border);
-    border-radius: 14px;
-    padding: 22px 16px;
+    border-radius: 12px;
+    padding: 16px;
     text-align: center;
     color: var(--muted);
-    font-size: 15px;
+    font-size: 13px;
   }
 
   @media (min-width: 640px) {
-    .toolbar-row {
-      align-items: stretch;
-    }
-
     .toolbar-buttons {
       grid-template-columns: 1fr 1fr 1fr;
     }
 
-    .toolbar-buttons.two {
-      grid-template-columns: 1fr 1fr;
-    }
-
     #camera {
-      min-height: 420px;
+      min-height: 380px;
     }
   }
 </style>
@@ -402,7 +435,7 @@
 
 <header class="toolbar">
   <div class="toolbar-top">
-    <span class="version">v1.4</span>
+    <span class="version">v1.5</span>
     <span class="app-title">Barcode Scanner</span>
     <span></span>
   </div>
@@ -413,24 +446,50 @@
       <span class="counter-label">Scans</span>
     </div>
 
-    <div class="toolbar-buttons" id="toolbarButtons">
-      <button class="button" id="startButton" type="button">Start Camera</button>
-      <button class="button secondary" id="exportButton" type="button" disabled>Export CSV</button>
-      <button class="button danger" id="clearButton" type="button" disabled>Clear Scans</button>
+    <div class="toolbar-buttons">
+      <button class="button" id="startButton" type="button">Start</button>
+      <button class="button secondary" id="exportButton" type="button" disabled>Export</button>
+      <button class="button danger" id="clearButton" type="button" disabled>Clear</button>
     </div>
   </div>
 
-  <div class="status" id="status">Camera is off. Press Start Camera to begin.</div>
+  <div class="status" id="status">Camera is off. Press Start to begin.</div>
 </header>
 
 <main>
+  <section class="manual-card">
+    <div class="manual-row">
+      <input
+        class="manual-input"
+        id="manualInput"
+        type="text"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="characters"
+        spellcheck="false"
+        placeholder="M12345 / R12345678"
+        aria-label="Enter or OCR an asset ID"
+      >
+      <button class="button success" id="addManualButton" type="button">Add</button>
+      <button class="button ocr" id="ocrButton" type="button">OCR</button>
+    </div>
+
+    <input
+      id="ocrFileInput"
+      type="file"
+      accept="image/*"
+      capture="environment"
+      style="display: none;"
+    >
+  </section>
+
   <section class="camera-card">
     <video id="camera" playsinline muted autoplay></video>
     <div class="camera-overlay" id="cameraOverlay">Camera preview will appear here</div>
     <div class="scan-flash" id="scanFlash"></div>
 
     <div class="camera-controls">
-      <button class="button secondary" id="torchButton" type="button" disabled>Toggle Flash</button>
+      <button class="button secondary" id="torchButton" type="button" disabled>Flash</button>
 
       <div class="zoom-row" id="zoomRow">
         <span class="zoom-label">Zoom</span>
@@ -449,40 +508,8 @@
   </section>
 
   <div class="hint">
-    For distant barcodes, use Zoom. If the image is dark, use Toggle Flash. Keep the label flat, avoid glare, and allow a moment for iPhone autofocus. OCR looks for Asset IDs in the forms <strong>M12345</strong> or <strong>R12345678</strong>.
+    Use Zoom for distant barcodes and Flash in low light. OCR reads Asset IDs in <strong>M12345</strong> or <strong>R12345678</strong> format and adds them only when one clear match is found.
   </div>
-
-  <section class="manual-card">
-    <h2 class="manual-title">Manual Entry / OCR</h2>
-
-    <div class="manual-row">
-      <input
-        class="manual-input"
-        id="manualInput"
-        type="text"
-        autocomplete="off"
-        autocorrect="off"
-        autocapitalize="characters"
-        spellcheck="false"
-        placeholder="M12345 or R12345678"
-        aria-label="Enter or OCR an asset ID"
-      >
-      <button class="button success" id="addManualButton" type="button">Add</button>
-    </div>
-
-    <div class="manual-actions">
-      <button class="button ocr" id="ocrButton" type="button">OCR Asset ID</button>
-      <button class="button secondary" id="clearManualButton" type="button">Clear Field</button>
-    </div>
-
-    <input
-      id="ocrFileInput"
-      type="file"
-      accept="image/*"
-      capture="environment"
-      style="display: none;"
-    >
-  </section>
 
   <section>
     <div class="section-title">
@@ -499,7 +526,7 @@
 (function () {
   "use strict";
 
-  var APP_VERSION = "v1.4";
+  var APP_VERSION = "v1.5";
   var STORAGE_KEY = "barcode-scanner-scans-v1";
   var DUPLICATE_SUPPRESSION_MS = 1500;
 
@@ -532,10 +559,10 @@
   var manualInputElement = document.getElementById("manualInput");
   var addManualButton = document.getElementById("addManualButton");
   var ocrButton = document.getElementById("ocrButton");
-  var clearManualButton = document.getElementById("clearManualButton");
   var ocrFileInput = document.getElementById("ocrFileInput");
 
   var scans = loadScans();
+  var editingIndex = null;
 
   function loadScans() {
     try {
@@ -606,22 +633,157 @@
     exportButton.disabled = false;
     clearButton.disabled = false;
 
-    scans.forEach(function (scan) {
+    scans.forEach(function (scan, index) {
       var listItem = document.createElement("li");
       listItem.className = "scan-item";
 
-      var codeElement = document.createElement("div");
-      codeElement.className = "scan-code";
-      codeElement.textContent = scan.barcode;
+      if (editingIndex === index) {
+        buildEditingItem(listItem, scan, index);
+      } else {
+        buildDisplayItem(listItem, scan, index);
+      }
 
-      var timeElement = document.createElement("div");
-      timeElement.className = "scan-time";
-      timeElement.textContent = formatTime(scan.timestamp);
-
-      listItem.appendChild(codeElement);
-      listItem.appendChild(timeElement);
       scanListElement.appendChild(listItem);
     });
+  }
+
+  function buildDisplayItem(listItem, scan, index) {
+    var details = document.createElement("div");
+    details.className = "scan-details";
+
+    var codeElement = document.createElement("div");
+    codeElement.className = "scan-code";
+    codeElement.textContent = scan.barcode;
+
+    var timeElement = document.createElement("div");
+    timeElement.className = "scan-time";
+    timeElement.textContent = formatTime(scan.timestamp);
+
+    details.appendChild(codeElement);
+    details.appendChild(timeElement);
+
+    var actions = document.createElement("div");
+    actions.className = "scan-actions";
+
+    var editButton = document.createElement("button");
+    editButton.className = "icon-button";
+    editButton.type = "button";
+    editButton.textContent = "✎";
+    editButton.setAttribute("aria-label", "Edit " + scan.barcode);
+    editButton.addEventListener("click", function () {
+      editingIndex = index;
+      updateUi();
+    });
+
+    var deleteButton = document.createElement("button");
+    deleteButton.className = "icon-button delete";
+    deleteButton.type = "button";
+    deleteButton.textContent = "✕";
+    deleteButton.setAttribute("aria-label", "Remove " + scan.barcode);
+    deleteButton.addEventListener("click", function () {
+      removeScan(index);
+    });
+
+    actions.appendChild(editButton);
+    actions.appendChild(deleteButton);
+
+    listItem.appendChild(details);
+    listItem.appendChild(actions);
+  }
+
+  function buildEditingItem(listItem, scan, index) {
+    var input = document.createElement("input");
+    input.className = "edit-input";
+    input.type = "text";
+    input.value = scan.barcode;
+    input.autocomplete = "off";
+    input.autocorrect = "off";
+    input.autocapitalize = "characters";
+    input.spellcheck = false;
+    input.setAttribute("aria-label", "Edit barcode");
+
+    var actions = document.createElement("div");
+    actions.className = "scan-actions";
+
+    var saveButton = document.createElement("button");
+    saveButton.className = "icon-button save";
+    saveButton.type = "button";
+    saveButton.textContent = "✓";
+    saveButton.setAttribute("aria-label", "Save barcode");
+    saveButton.addEventListener("click", function () {
+      saveEditedScan(index, input.value);
+    });
+
+    var cancelButton = document.createElement("button");
+    cancelButton.className = "icon-button";
+    cancelButton.type = "button";
+    cancelButton.textContent = "✕";
+    cancelButton.setAttribute("aria-label", "Cancel edit");
+    cancelButton.addEventListener("click", function () {
+      editingIndex = null;
+      updateUi();
+    });
+
+    actions.appendChild(saveButton);
+    actions.appendChild(cancelButton);
+
+    listItem.appendChild(input);
+    listItem.appendChild(actions);
+
+    input.addEventListener("keydown", function (event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        saveEditedScan(index, input.value);
+      } else if (event.key === "Escape") {
+        editingIndex = null;
+        updateUi();
+      }
+    });
+
+    window.setTimeout(function () {
+      input.focus();
+      input.select();
+    }, 0);
+  }
+
+  function saveEditedScan(index, value) {
+    var cleanedValue = String(value || "").trim().toUpperCase();
+
+    if (!cleanedValue) {
+      setStatus("Barcode cannot be empty.", "error");
+      return;
+    }
+
+    var duplicateIndex = scans.findIndex(function (scan, scanIndex) {
+      return scanIndex !== index && scan.barcode === cleanedValue;
+    });
+
+    if (duplicateIndex !== -1) {
+      setStatus("That barcode already exists in the list.", "error");
+      return;
+    }
+
+    scans[index].barcode = cleanedValue;
+    editingIndex = null;
+
+    saveScans();
+    updateUi();
+    setStatus("Updated to " + cleanedValue, "success");
+  }
+
+  function removeScan(index) {
+    var removedBarcode = scans[index].barcode;
+    scans.splice(index, 1);
+
+    if (editingIndex === index) {
+      editingIndex = null;
+    } else if (editingIndex !== null && editingIndex > index) {
+      editingIndex = editingIndex - 1;
+    }
+
+    saveScans();
+    updateUi();
+    setStatus("Removed " + removedBarcode);
   }
 
   function initAudio() {
@@ -718,6 +880,8 @@
       timestamp: now
     });
 
+    editingIndex = null;
+
     saveScans();
     updateUi();
     playBeep();
@@ -757,7 +921,7 @@
 
   function setButtonsForRunningState(running) {
     startButton.disabled = running;
-    startButton.textContent = running ? "Camera Running" : "Start Camera";
+    startButton.textContent = running ? "Stop" : "Start";
     startButton.classList.toggle("success", running);
   }
 
@@ -819,7 +983,7 @@
     torchButton.disabled = !torchSupported;
 
     if (!torchSupported) {
-      torchButton.textContent = "Flash Unavailable";
+      torchButton.textContent = "No Flash";
     }
 
     if (zoomSupported) {
@@ -838,12 +1002,17 @@
   }
 
   async function toggleTorch() {
+    if (!isCameraRunning) {
+      setStatus("Start the camera before using the flash.", "error");
+      return;
+    }
+
     if (!cameraTrack) {
       cameraTrack = getCameraTrack();
     }
 
     if (!cameraTrack) {
-      setStatus("Start the camera before using the flash.", "error");
+      setStatus("Camera track is unavailable.", "error");
       return;
     }
 
@@ -870,12 +1039,12 @@
       });
 
       torchButton.classList.toggle("torch-on", isTorchOn);
-      torchButton.textContent = isTorchOn ? "Flash On" : "Toggle Flash";
+      torchButton.textContent = isTorchOn ? "Flash On" : "Flash";
       setStatus(isTorchOn ? "Flash enabled." : "Flash disabled.", "success");
     } catch (error) {
       isTorchOn = false;
       torchButton.classList.remove("torch-on");
-      torchButton.textContent = "Toggle Flash";
+      torchButton.textContent = "Flash";
       setStatus("Could not control the flash on this device.", "error");
     }
   }
@@ -902,6 +1071,7 @@
 
   function startCamera() {
     if (isCameraRunning) {
+      stopCameraIfRunning();
       return;
     }
 
@@ -1010,7 +1180,7 @@
       return;
     }
 
-    if (isTorchOn) {
+    if (isTorchOn && cameraTrack) {
       try {
         cameraTrack.applyConstraints({
           advanced: [
@@ -1023,7 +1193,7 @@
 
       isTorchOn = false;
       torchButton.classList.remove("torch-on");
-      torchButton.textContent = "Toggle Flash";
+      torchButton.textContent = "Flash";
     }
 
     try {
@@ -1094,6 +1264,7 @@
     }
 
     scans = [];
+    editingIndex = null;
     lastScan.text = null;
     lastScan.timestamp = 0;
 
@@ -1188,7 +1359,7 @@
 
     isOcrRunning = true;
     ocrButton.disabled = true;
-    ocrButton.textContent = "Reading…";
+    ocrButton.textContent = "…";
     setStatus("Reading Asset ID…");
 
     try {
@@ -1210,7 +1381,7 @@
         } else {
           manualInputElement.value = candidates[0];
           manualInputElement.focus();
-          setStatus("OCR found " + candidates[0] + ", but it was just added. Check and add again if needed.", "success");
+          setStatus("OCR found " + candidates[0] + ", but it was just added.", "success");
         }
 
         return;
@@ -1225,7 +1396,7 @@
     } finally {
       isOcrRunning = false;
       ocrButton.disabled = false;
-      ocrButton.textContent = "OCR Asset ID";
+      ocrButton.textContent = "OCR";
       ocrFileInput.value = "";
     }
   }
@@ -1254,12 +1425,6 @@
     if (file) {
       runOcr(file);
     }
-  });
-
-  clearManualButton.addEventListener("click", function () {
-    manualInputElement.value = "";
-    manualInputElement.focus();
-    setStatus("Manual entry field cleared.");
   });
 
   manualInputElement.addEventListener("keydown", function (event) {
