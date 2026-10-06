@@ -1,100 +1,215 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Barcode CSV Scanner</title>
+<title>Barcode Scanner CSV</title>
  
 <style>
 body {
-font-family: Arial, sans-serif;
-margin: 15px;
+font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+margin: 0;
+padding: 16px;
+background: #f5f5f5;
 }
+ 
+h1 {
+margin-top: 0;
+}
+ 
 video {
 width: 100%;
-border: 1px solid #ccc;
+background: #000;
+border-radius: 12px;
 }
+ 
+.card {
+background: white;
+padding: 16px;
+border-radius: 12px;
+margin-bottom: 16px;
+}
+ 
 button {
 width: 100%;
-padding: 12px;
-margin: 5px 0;
+padding: 14px;
+margin-top: 8px;
+border: none;
+border-radius: 10px;
+background: #007aff;
+color: white;
+font-size: 16px;
+cursor: pointer;
+}
+ 
+button.secondary {
+background: #666;
+}
+ 
+button.danger {
+background: #d70015;
+}
+ 
+.stats {
+font-size: 18px;
+font-weight: bold;
+margin-bottom: 10px;
+}
+ 
+#status {
+margin-top: 10px;
+color: #666;
+}
+ 
+#scans {
+max-height: 300px;
+overflow-y: auto;
+}
+ 
+.scan {
+padding: 8px;
+border-bottom: 1px solid #eee;
+word-break: break-all;
 }
 </style>
 </head>
+ 
 <body>
  
-<h2>Barcode Scanner</h2>
+<div class="card">
+<h1>Barcode Scanner</h1>
  
-<video id="video"></video>
+<video id="video" playsinline></video>
  
-<button id="startBtn">Start Scanner</button>
-<button onclick="downloadCSV()">Export CSV</button>
+<button id="startBtn">Start Camera</button>
+<button id="exportBtn" class="secondary">Export CSV</button>
+<button id="clearBtn" class="danger">Clear All Scans</button>
  
-<p>Scans: <span id="count">0</span></p>
+<div id="status">Ready</div>
+</div>
  
-<ul id="results"></ul>
+<div class="card">
+<div class="stats">
+Scans: <span id="count">0</span>
+</div>
  
-<script src="https://ung/library@latestscript>
+<div id="scans"></div>
+</div>
+ 
+https://unpkg.com/@zxing/library@latestscript>
  
 <script>
-const scans = [];
-let lastScan = "";
+const STORAGE_KEY = "barcode_scans";
  
-document.getElementById("startBtn").addEventListener("click", startScanner);
+let scans = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
  
-async function startScanner() {
-const codeReader = new ZXing.BrowserMultiFormatReader();
+let codeReader;
+let lastBarcode = "";
+let lastScanTime = 0;
+ 
+const countEl = document.getElementById("count");
+const scansEl = document.getElementById("scans");
+const statusEl = document.getElementById("status");
+ 
+function saveScans() {
+localStorage.setItem(STORAGE_KEY, JSON.stringify(scans));
+}
+ 
+function refreshList() {
+countEl.textContent = scans.length;
+ 
+scansEl.innerHTML = scans
+.slice()
+.reverse()
+.map(code => `<div class="scan">${code}</div>`)
+.join("");
+}
+ 
+refreshList();
+ 
+document.getElementById("startBtn").addEventListener("click", async () => {
  
 try {
+ 
+statusEl.textContent = "Starting camera...";
+ 
+codeReader = new ZXing.BrowserMultiFormatReader();
+ 
 await codeReader.decodeFromVideoDevice(
 null,
-'video',
+"video",
 (result, err) => {
  
-if (result) {
+if (!result) return;
  
 const barcode = result.getText();
+const now = Date.now();
  
-if (barcode !== lastScan) {
+if (
+barcode === lastBarcode &&
+now - lastScanTime < 1500
+) {
+return;
+}
  
-lastScan = barcode;
+lastBarcode = barcode;
+lastScanTime = now;
  
 scans.push(barcode);
  
-document.getElementById("count").textContent =
-scans.length;
+saveScans();
+refreshList();
  
-const li = document.createElement("li");
-li.textContent = barcode;
-document.getElementById("results").appendChild(li);
+statusEl.textContent =
+"Last scan: " + barcode;
  
-setTimeout(() => {
-lastScan = "";
-}, 1500);
-}
+if (navigator.vibrate) {
+navigator.vibrate(100);
 }
 }
 );
-} catch (e) {
-alert("Camera error: " + e);
-}
-}
  
-function downloadCSV() {
+} catch (e) {
+statusEl.textContent = "Error: " + e.message;
+}
+});
+ 
+document.getElementById("exportBtn").addEventListener("click", () => {
  
 let csv = "Barcode\n";
  
 scans.forEach(code => {
-csv += `"${code}"\n`;
+csv += `"${code.replace(/"/g, '""')}"\n`;
 });
  
-const blob = new Blob([csv], { type: 'text/csv' });
+const blob = new Blob(
+[csv],
+{ type: "text/csv;charset=utf-8;" }
+);
  
-const link = document.createElement('a');
-link.href = URL.createObjectURL(blob);
-link.download = "barcodes.csv";
-link.click();
+const url = URL.createObjectURL(blob);
+ 
+const a = document.createElement("a");
+a.href = url;
+a.download = "barcodes.csv";
+document.body.appendChild(a);
+a.click();
+ 
+document.body.removeChild(a);
+URL.revokeObjectURL(url);
+});
+ 
+document.getElementById("clearBtn").addEventListener("click", () => {
+ 
+if (!confirm("Delete all scanned barcodes?")) {
+return;
 }
+ 
+scans = [];
+saveScans();
+refreshList();
+statusEl.textContent = "Scans cleared";
+});
 </script>
  
 </body>
