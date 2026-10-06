@@ -153,6 +153,11 @@
     background: #7c3aed;
   }
 
+  .button.torch-on {
+    background: #f59e0b;
+    color: #1f1300;
+  }
+
   .toolbar-buttons.two {
     grid-template-columns: 1fr 1fr;
   }
@@ -228,6 +233,38 @@
 
   .scan-flash.active {
     opacity: 1;
+  }
+
+  .camera-controls {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 12px;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+  }
+
+  .zoom-row {
+    display: none;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .zoom-row.visible {
+    display: flex;
+  }
+
+  .zoom-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .zoom-slider {
+    flex: 1;
+    min-height: 36px;
+    accent-color: var(--accent);
   }
 
   .hint {
@@ -365,7 +402,7 @@
 
 <header class="toolbar">
   <div class="toolbar-top">
-    <span class="version">v1.3</span>
+    <span class="version">v1.4</span>
     <span class="app-title">Barcode Scanner</span>
     <span></span>
   </div>
@@ -391,10 +428,28 @@
     <video id="camera" playsinline muted autoplay></video>
     <div class="camera-overlay" id="cameraOverlay">Camera preview will appear here</div>
     <div class="scan-flash" id="scanFlash"></div>
+
+    <div class="camera-controls">
+      <button class="button secondary" id="torchButton" type="button" disabled>Toggle Flash</button>
+
+      <div class="zoom-row" id="zoomRow">
+        <span class="zoom-label">Zoom</span>
+        <input
+          class="zoom-slider"
+          id="zoomSlider"
+          type="range"
+          min="1"
+          max="1"
+          step="0.1"
+          value="1"
+          aria-label="Camera zoom"
+        >
+      </div>
+    </div>
   </section>
 
   <div class="hint">
-    Hold the barcode roughly 10–25 cm away, keep it flat and well lit, and avoid glare. For damaged labels, try changing the angle or use Manual Entry. OCR reads the printed digits and places them in the field for checking before you add them.
+    For distant barcodes, use Zoom. If the image is dark, use Toggle Flash. Keep the label flat, avoid glare, and allow a moment for iPhone autofocus. OCR looks for Asset IDs in the forms <strong>M12345</strong> or <strong>R12345678</strong>.
   </div>
 
   <section class="manual-card">
@@ -405,19 +460,18 @@
         class="manual-input"
         id="manualInput"
         type="text"
-        inputmode="numeric"
         autocomplete="off"
         autocorrect="off"
-        autocapitalize="off"
+        autocapitalize="characters"
         spellcheck="false"
-        placeholder="Enter or OCR a barcode"
-        aria-label="Enter or OCR a barcode"
+        placeholder="M12345 or R12345678"
+        aria-label="Enter or OCR an asset ID"
       >
       <button class="button success" id="addManualButton" type="button">Add</button>
     </div>
 
     <div class="manual-actions">
-      <button class="button ocr" id="ocrButton" type="button">OCR Barcode</button>
+      <button class="button ocr" id="ocrButton" type="button">OCR Asset ID</button>
       <button class="button secondary" id="clearManualButton" type="button">Clear Field</button>
     </div>
 
@@ -445,13 +499,15 @@
 (function () {
   "use strict";
 
-  var APP_VERSION = "v1.3";
+  var APP_VERSION = "v1.4";
   var STORAGE_KEY = "barcode-scanner-scans-v1";
   var DUPLICATE_SUPPRESSION_MS = 1500;
 
   var codeReader = null;
   var streamControls = null;
+  var cameraTrack = null;
   var isCameraRunning = false;
+  var isTorchOn = false;
   var isOcrRunning = false;
   var ocrWorker = null;
   var audioContext = null;
@@ -470,6 +526,9 @@
   var cameraOverlayElement = document.getElementById("cameraOverlay");
   var scanFlashElement = document.getElementById("scanFlash");
   var cameraElement = document.getElementById("camera");
+  var torchButton = document.getElementById("torchButton");
+  var zoomRow = document.getElementById("zoomRow");
+  var zoomSlider = document.getElementById("zoomSlider");
   var manualInputElement = document.getElementById("manualInput");
   var addManualButton = document.getElementById("addManualButton");
   var ocrButton = document.getElementById("ocrButton");
@@ -636,7 +695,7 @@
   }
 
   function addScan(barcode) {
-    var cleanedBarcode = String(barcode || "").trim();
+    var cleanedBarcode = String(barcode || "").trim().toUpperCase();
 
     if (!cleanedBarcode) {
       return false;
@@ -719,6 +778,128 @@
     return new ZXing.BrowserMultiFormatReader(hints, 100);
   }
 
+  function getCameraTrack() {
+    if (!cameraElement.srcObject) {
+      return null;
+    }
+
+    var tracks = cameraElement.srcObject.getVideoTracks();
+
+    return tracks && tracks.length > 0 ? tracks[0] : null;
+  }
+
+  async function setupCameraControls() {
+    cameraTrack = getCameraTrack();
+
+    if (!cameraTrack) {
+      return;
+    }
+
+    try {
+      await cameraTrack.applyConstraints({
+        advanced: [
+          { focusMode: "continuous" }
+        ]
+      });
+    } catch (error) {
+      // Continuous focus is not universally supported.
+    }
+
+    var capabilities = null;
+
+    try {
+      capabilities = cameraTrack.getCapabilities ? cameraTrack.getCapabilities() : null;
+    } catch (error) {
+      capabilities = null;
+    }
+
+    var torchSupported = !!(capabilities && capabilities.torch);
+    var zoomSupported = !!(capabilities && capabilities.zoom && typeof capabilities.zoom.min === "number");
+
+    torchButton.disabled = !torchSupported;
+
+    if (!torchSupported) {
+      torchButton.textContent = "Flash Unavailable";
+    }
+
+    if (zoomSupported) {
+      var minimum = capabilities.zoom.min || 1;
+      var maximum = capabilities.zoom.max || minimum;
+      var step = capabilities.zoom.step || 0.1;
+
+      zoomSlider.min = String(minimum);
+      zoomSlider.max = String(maximum);
+      zoomSlider.step = String(step);
+      zoomSlider.value = String(minimum);
+      zoomRow.classList.add("visible");
+    } else {
+      zoomRow.classList.remove("visible");
+    }
+  }
+
+  async function toggleTorch() {
+    if (!cameraTrack) {
+      cameraTrack = getCameraTrack();
+    }
+
+    if (!cameraTrack) {
+      setStatus("Start the camera before using the flash.", "error");
+      return;
+    }
+
+    var capabilities = null;
+
+    try {
+      capabilities = cameraTrack.getCapabilities ? cameraTrack.getCapabilities() : null;
+    } catch (error) {
+      capabilities = null;
+    }
+
+    if (!capabilities || !capabilities.torch) {
+      setStatus("This camera does not expose flash control to the browser.", "error");
+      return;
+    }
+
+    try {
+      isTorchOn = !isTorchOn;
+
+      await cameraTrack.applyConstraints({
+        advanced: [
+          { torch: isTorchOn }
+        ]
+      });
+
+      torchButton.classList.toggle("torch-on", isTorchOn);
+      torchButton.textContent = isTorchOn ? "Flash On" : "Toggle Flash";
+      setStatus(isTorchOn ? "Flash enabled." : "Flash disabled.", "success");
+    } catch (error) {
+      isTorchOn = false;
+      torchButton.classList.remove("torch-on");
+      torchButton.textContent = "Toggle Flash";
+      setStatus("Could not control the flash on this device.", "error");
+    }
+  }
+
+  async function setZoom(value) {
+    if (!cameraTrack) {
+      cameraTrack = getCameraTrack();
+    }
+
+    if (!cameraTrack) {
+      return;
+    }
+
+    try {
+      await cameraTrack.applyConstraints({
+        advanced: [
+          { zoom: Number(value) }
+        ]
+      });
+    } catch (error) {
+      setStatus("This camera does not support the selected zoom level.", "error");
+    }
+  }
+
   function startCamera() {
     if (isCameraRunning) {
       return;
@@ -777,7 +958,9 @@
       isCameraRunning = true;
       hideCameraOverlay();
       setButtonsForRunningState(true);
-      setStatus("Camera running. Point it at a barcode.");
+      setStatus("Camera running. Use Zoom for distant barcodes.");
+
+      setupCameraControls();
     }).catch(function (error) {
       isCameraRunning = false;
       setButtonsForRunningState(false);
@@ -818,12 +1001,29 @@
       }
 
       streamControls = null;
+      cameraTrack = null;
     });
   }
 
   function stopCameraIfRunning() {
     if (!codeReader || !isCameraRunning) {
       return;
+    }
+
+    if (isTorchOn) {
+      try {
+        cameraTrack.applyConstraints({
+          advanced: [
+            { torch: false }
+          ]
+        });
+      } catch (error) {
+        // Ignore torch cleanup errors.
+      }
+
+      isTorchOn = false;
+      torchButton.classList.remove("torch-on");
+      torchButton.textContent = "Toggle Flash";
     }
 
     try {
@@ -842,8 +1042,11 @@
 
     isCameraRunning = false;
     streamControls = null;
+    cameraTrack = null;
     codeReader = null;
     setButtonsForRunningState(false);
+    zoomRow.classList.remove("visible");
+    torchButton.disabled = true;
     showCameraOverlay("Camera preview will appear here");
     setStatus("Camera stopped.");
   }
@@ -900,10 +1103,15 @@
   }
 
   function addManualBarcode() {
-    var value = manualInputElement.value.trim();
+    var value = manualInputElement.value.trim().toUpperCase();
 
     if (!value) {
-      setStatus("Enter a barcode before pressing Add.", "error");
+      setStatus("Enter an Asset ID before pressing Add.", "error");
+      return;
+    }
+
+    if (!/^M\d{5}$/.test(value) && !/^R\d{8}$/.test(value)) {
+      setStatus("Asset ID must be M12345 or R12345678 format.", "error");
       return;
     }
 
@@ -913,30 +1121,34 @@
       manualInputElement.value = "";
       manualInputElement.blur();
     } else {
-      setStatus("That barcode was just added. Wait about 1.5 seconds to add it again.", "error");
+      setStatus("That Asset ID was just added. Wait about 1.5 seconds to add it again.", "error");
     }
   }
 
-  function extractBarcodeCandidate(text) {
+  function extractAssetIdCandidates(text) {
     if (!text) {
-      return null;
+      return [];
     }
 
-    var digitGroups = text.match(/\d{6,}/g);
+    var possibleMatches = text.match(/\b[MR]\d{5,8}\b/gi);
 
-    if (!digitGroups || digitGroups.length === 0) {
-      return null;
+    if (!possibleMatches) {
+      return [];
     }
 
-    var best = digitGroups[0];
+    var validMatches = [];
 
-    digitGroups.forEach(function (group) {
-      if (group.length > best.length) {
-        best = group;
+    possibleMatches.forEach(function (match) {
+      var cleaned = match.toUpperCase();
+
+      if (/^M\d{5}$/.test(cleaned) || /^R\d{8}$/.test(cleaned)) {
+        if (validMatches.indexOf(cleaned) === -1) {
+          validMatches.push(cleaned);
+        }
       }
     });
 
-    return best;
+    return validMatches;
   }
 
   async function getOcrWorker() {
@@ -953,7 +1165,7 @@
     ocrWorker = await Tesseract.createWorker("eng", 1);
 
     await ocrWorker.setParameters({
-      tessedit_char_whitelist: "0123456789"
+      tessedit_char_whitelist: "MR0123456789"
     });
 
     return ocrWorker;
@@ -977,29 +1189,43 @@
     isOcrRunning = true;
     ocrButton.disabled = true;
     ocrButton.textContent = "Reading…";
-    setStatus("Reading barcode digits…");
+    setStatus("Reading Asset ID…");
 
     try {
       var worker = await getOcrWorker();
       var recognition = await worker.recognize(file);
       var text = recognition && recognition.data && recognition.data.text ? recognition.data.text : "";
-      var candidate = extractBarcodeCandidate(text);
+      var candidates = extractAssetIdCandidates(text);
 
-      if (!candidate) {
-        setStatus("OCR could not find a barcode number. Try a closer, straight-on photo.", "error");
+      if (candidates.length === 0) {
+        setStatus("OCR could not find an Asset ID in M12345 or R12345678 format.", "error");
         return;
       }
 
-      manualInputElement.value = candidate;
+      if (candidates.length === 1) {
+        var added = addScan(candidates[0]);
+
+        if (added) {
+          setStatus("OCR added: " + candidates[0], "success");
+        } else {
+          manualInputElement.value = candidates[0];
+          manualInputElement.focus();
+          setStatus("OCR found " + candidates[0] + ", but it was just added. Check and add again if needed.", "success");
+        }
+
+        return;
+      }
+
+      manualInputElement.value = candidates[0];
       manualInputElement.focus();
-      setStatus("OCR found: " + candidate + ". Check it, then press Add.", "success");
+      setStatus("OCR found " + candidates.length + " possible Asset IDs. Check the field, then press Add.", "success");
     } catch (error) {
       var message = error && error.message ? error.message : String(error);
       setStatus("OCR failed: " + message, "error");
     } finally {
       isOcrRunning = false;
       ocrButton.disabled = false;
-      ocrButton.textContent = "OCR Barcode";
+      ocrButton.textContent = "OCR Asset ID";
       ocrFileInput.value = "";
     }
   }
@@ -1008,6 +1234,11 @@
   exportButton.addEventListener("click", exportCsv);
   clearButton.addEventListener("click", clearScans);
   addManualButton.addEventListener("click", addManualBarcode);
+  torchButton.addEventListener("click", toggleTorch);
+
+  zoomSlider.addEventListener("input", function () {
+    setZoom(zoomSlider.value);
+  });
 
   ocrButton.addEventListener("click", function () {
     if (isOcrRunning) {
