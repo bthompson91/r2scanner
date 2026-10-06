@@ -7,8 +7,6 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0b1220">
 <title>Barcode Scanner</title>
-<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js" defer></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js" defer></script>
 <style>
   :root {
     color-scheme: dark;
@@ -595,7 +593,7 @@
 
 <header class="toolbar">
   <div class="toolbar-top">
-    <span class="version">v0.10</span>
+    <span class="version">v0.11</span>
     <span class="app-title">Barcode Scanner</span>
     <span></span>
   </div>
@@ -638,7 +636,7 @@
     </div>
   </div>
 
-  <div class="status" id="status">Camera is off. Press Start to begin.</div>
+  <div class="status" id="status">Loading scanner…</div>
 </header>
 
 <main>
@@ -670,7 +668,7 @@
     >
   </section>
 
-  <section class="camera-card">
+  <section class="camera-card" id="cameraCard">
     <video id="camera" playsinline muted autoplay></video>
     <canvas id="freezeFrame"></canvas>
     <div class="camera-overlay" id="cameraOverlay">Camera preview will appear here</div>
@@ -716,11 +714,13 @@
   </section>
 </main>
 
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js"></script>
 <script>
 (function () {
   "use strict";
 
-  var APP_VERSION = "v0.10";
+  var APP_VERSION = "v0.11";
   var STORAGE_KEY = "barcode-scanner-scans-v1";
   var METADATA_STORAGE_KEY = "barcode-scanner-metadata-v1";
   var DUPLICATE_SUPPRESSION_MS = 1500;
@@ -737,10 +737,7 @@
   var audioContext = null;
   var currentZoom = 1;
   var zoomCapabilities = null;
-  var lastScan = {
-    text: null,
-    timestamp: 0
-  };
+  var lastScan = { text: null, timestamp: 0 };
   var lastSuccessfulScanTime = 0;
   var hasUnexportedChanges = false;
   var lastAction = null;
@@ -760,6 +757,7 @@
   var scanGuideElement = document.getElementById("scanGuide");
   var freezeFrameElement = document.getElementById("freezeFrame");
   var cameraElement = document.getElementById("camera");
+  var cameraCardElement = document.getElementById("cameraCard");
   var cameraButton = document.getElementById("cameraButton");
   var torchButton = document.getElementById("torchButton");
   var guideButton = document.getElementById("guideButton");
@@ -777,6 +775,10 @@
 
   var scans = loadScans();
   var metadata = loadMetadata();
+
+  window.onerror = function (message) {
+    setStatus("App error: " + message, "error");
+  };
 
   function loadScans() {
     try {
@@ -812,10 +814,7 @@
       var stored = localStorage.getItem(METADATA_STORAGE_KEY);
 
       if (!stored) {
-        return {
-          venue: "",
-          transfer: ""
-        };
+        return { venue: "", transfer: "" };
       }
 
       var parsed = JSON.parse(stored);
@@ -825,10 +824,7 @@
         transfer: typeof parsed.transfer === "string" ? parsed.transfer : ""
       };
     } catch (error) {
-      return {
-        venue: "",
-        transfer: ""
-      };
+      return { venue: "", transfer: "" };
     }
   }
 
@@ -900,9 +896,7 @@
       filename += "-" + transfer;
     }
 
-    filename += "-" + timestamp + ".csv";
-
-    return filename;
+    return filename + "-" + timestamp + ".csv";
   }
 
   function buildCsvContent() {
@@ -928,7 +922,6 @@
   function updateUi() {
     scanCountElement.textContent = String(scans.length);
     scanListElement.innerHTML = "";
-
     undoButton.disabled = !lastAction;
 
     if (scans.length === 0) {
@@ -1116,11 +1109,7 @@
 
     var removedBarcode = scans[index].barcode;
 
-    var confirmed = window.confirm(
-      "Remove " + removedBarcode + " from the scanned list?"
-    );
-
-    if (!confirmed) {
+    if (!window.confirm("Remove " + removedBarcode + " from the scanned list?")) {
       return;
     }
 
@@ -1213,4 +1202,874 @@
       gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
 
       oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destina
+      gainNode.connect(audioContext.destination);
+
+      oscillator.start(startTime);
+      oscillator.stop(startTime + duration);
+    } catch (error) {
+      // Audio feedback is optional.
+    }
+  }
+
+  function playGoodSound() {
+    if (!audioContext) {
+      return;
+    }
+
+    var now = audioContext.currentTime;
+
+    playTone(1200, now, 0.09, 0.25);
+    playTone(1800, now + 0.07, 0.13, 0.25);
+  }
+
+  function playBadSound() {
+    if (!audioContext) {
+      return;
+    }
+
+    var now = audioContext.currentTime;
+
+    playTone(240, now, 0.12, 0.28);
+    playTone(180, now + 0.13, 0.18, 0.28);
+  }
+
+  function vibrate(pattern) {
+    if (navigator.vibrate) {
+      try {
+        navigator.vibrate(pattern);
+      } catch (error) {
+        // Vibration is optional.
+      }
+    }
+  }
+
+  function flashSuccess() {
+    scanFlashElement.classList.remove("bad");
+    scanFlashElement.classList.add("active");
+
+    window.setTimeout(function () {
+      scanFlashElement.classList.remove("active");
+    }, 180);
+  }
+
+  function flashWarning() {
+    scanFlashElement.classList.add("bad");
+    scanFlashElement.classList.add("active");
+
+    window.setTimeout(function () {
+      scanFlashElement.classList.remove("active");
+    }, 350);
+  }
+
+  function showFreezeFrame() {
+    if (!cameraElement.videoWidth || !cameraElement.videoHeight) {
+      return;
+    }
+
+    freezeFrameElement.width = cameraElement.videoWidth;
+    freezeFrameElement.height = cameraElement.videoHeight;
+
+    var context = freezeFrameElement.getContext("2d");
+
+    if (!context) {
+      return;
+    }
+
+    context.drawImage(cameraElement, 0, 0);
+    freezeFrameElement.classList.add("visible");
+
+    window.setTimeout(function () {
+      freezeFrameElement.classList.remove("visible");
+    }, 550);
+  }
+
+  function addScan(barcode, source) {
+    var cleanedBarcode = String(barcode || "").trim().toUpperCase();
+
+    if (!cleanedBarcode) {
+      return false;
+    }
+
+    var now = Date.now();
+
+    if (
+      lastScan.text === cleanedBarcode &&
+      now - lastScan.timestamp < DUPLICATE_SUPPRESSION_MS
+    ) {
+      return false;
+    }
+
+    var existingIndex = findScanIndex(cleanedBarcode);
+
+    if (existingIndex !== -1) {
+      lastScan.text = cleanedBarcode;
+      lastScan.timestamp = now;
+
+      playBadSound();
+      vibrate([120, 70, 120]);
+      flashWarning();
+      setStatus("Already scanned: " + cleanedBarcode, "warning");
+
+      return false;
+    }
+
+    lastScan.text = cleanedBarcode;
+    lastScan.timestamp = now;
+    lastSuccessfulScanTime = now;
+
+    scans.unshift({
+      barcode: cleanedBarcode,
+      timestamp: now
+    });
+
+    editingIndex = null;
+
+    lastAction = {
+      type: "add",
+      barcode: cleanedBarcode
+    };
+
+    saveScans();
+    updateUi();
+    playGoodSound();
+    vibrate(80);
+    flashSuccess();
+    showFreezeFrame();
+    setStatus((source === "ocr" ? "OCR added: " : "Added: ") + cleanedBarcode, "success");
+
+    return true;
+  }
+
+  function onDecodeResult(result) {
+    if (!result || typeof result.getText !== "function") {
+      return;
+    }
+
+    var text = result.getText();
+
+    if (typeof text !== "string" || text.length === 0) {
+      return;
+    }
+
+    addScan(text, "camera");
+  }
+
+  function onDecodeError() {
+    // ZXing calls this for every frame without a readable code.
+  }
+
+  function showCameraOverlay(message) {
+    cameraOverlayElement.textContent = message;
+    cameraOverlayElement.classList.add("visible");
+  }
+
+  function hideCameraOverlay() {
+    cameraOverlayElement.classList.remove("visible");
+  }
+
+  function setButtonsForRunningState(running) {
+    startButton.textContent = running ? "Stop" : "Start";
+    startButton.classList.toggle("success", running);
+  }
+
+  function createReader() {
+    var hints = new Map();
+    var formats = [
+      ZXing.BarcodeFormat.CODE_128,
+      ZXing.BarcodeFormat.EAN_13,
+      ZXing.BarcodeFormat.EAN_8,
+      ZXing.BarcodeFormat.UPC_A,
+      ZXing.BarcodeFormat.UPC_E,
+      ZXing.BarcodeFormat.CODE_39,
+      ZXing.BarcodeFormat.QR_CODE
+    ];
+
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+
+    return new ZXing.BrowserMultiFormatReader(hints, 100);
+  }
+
+  function getCameraTrack() {
+    if (!cameraElement.srcObject) {
+      return null;
+    }
+
+    var tracks = cameraElement.srcObject.getVideoTracks();
+
+    return tracks && tracks.length > 0 ? tracks[0] : null;
+  }
+
+  function updateZoomButtons() {
+    if (!zoomCapabilities) {
+      zoomInButton.disabled = true;
+      zoomOutButton.disabled = true;
+      zoomValueElement.textContent = "";
+      return;
+    }
+
+    zoomOutButton.disabled = currentZoom <= zoomCapabilities.min + 0.001;
+    zoomInButton.disabled = currentZoom >= zoomCapabilities.max - 0.001;
+    zoomValueElement.textContent = currentZoom.toFixed(1) + "×";
+  }
+
+  async function setupCameraControls() {
+    cameraTrack = getCameraTrack();
+
+    if (!cameraTrack) {
+      return;
+    }
+
+    try {
+      await cameraTrack.applyConstraints({
+        advanced: [{ focusMode: "continuous" }]
+      });
+    } catch (error) {
+      // Continuous focus is not universally supported.
+    }
+
+    var capabilities = null;
+
+    try {
+      capabilities = cameraTrack.getCapabilities ? cameraTrack.getCapabilities() : null;
+    } catch (error) {
+      capabilities = null;
+    }
+
+    torchButton.disabled = !(capabilities && capabilities.torch);
+
+    if (capabilities && capabilities.zoom && typeof capabilities.zoom.min === "number") {
+      zoomCapabilities = {
+        min: capabilities.zoom.min,
+        max: capabilities.zoom.max,
+        step: capabilities.zoom.step || 0.1
+      };
+
+      currentZoom = zoomCapabilities.min;
+    } else {
+      zoomCapabilities = null;
+      currentZoom = 1;
+    }
+
+    updateZoomButtons();
+
+    try {
+      var devices = await navigator.mediaDevices.enumerateDevices();
+      cameraDevices = devices.filter(function (device) {
+        return device.kind === "videoinput";
+      });
+
+      var settings = cameraTrack.getSettings ? cameraTrack.getSettings() : null;
+
+      if (settings && settings.deviceId) {
+        currentDeviceId = settings.deviceId;
+      }
+
+      cameraButton.disabled = cameraDevices.length < 2;
+    } catch (error) {
+      cameraDevices = [];
+      cameraButton.disabled = true;
+    }
+  }
+
+  async function toggleTorch() {
+    if (!isCameraRunning) {
+      setStatus("Start the camera before using the flash.", "error");
+      return;
+    }
+
+    if (!cameraTrack) {
+      cameraTrack = getCameraTrack();
+    }
+
+    if (!cameraTrack) {
+      setStatus("Camera track is unavailable.", "error");
+      return;
+    }
+
+    var capabilities = null;
+
+    try {
+      capabilities = cameraTrack.getCapabilities ? cameraTrack.getCapabilities() : null;
+    } catch (error) {
+      capabilities = null;
+    }
+
+    if (!capabilities || !capabilities.torch) {
+      setStatus("This camera does not expose flash control to the browser.", "error");
+      return;
+    }
+
+    try {
+      isTorchOn = !isTorchOn;
+
+      await cameraTrack.applyConstraints({
+        advanced: [{ torch: isTorchOn }]
+      });
+
+      torchButton.classList.toggle("torch-on", isTorchOn);
+      setStatus(isTorchOn ? "Flash enabled." : "Flash disabled.", "success");
+    } catch (error) {
+      isTorchOn = false;
+      torchButton.classList.remove("torch-on");
+      setStatus("Could not control the flash on this device.", "error");
+    }
+  }
+
+  async function setZoom(value) {
+    if (!cameraTrack || !zoomCapabilities) {
+      return;
+    }
+
+    var nextZoom = Math.min(
+      zoomCapabilities.max,
+      Math.max(zoomCapabilities.min, Number(value))
+    );
+
+    try {
+      await cameraTrack.applyConstraints({
+        advanced: [{ zoom: nextZoom }]
+      });
+
+      currentZoom = nextZoom;
+      updateZoomButtons();
+    } catch (error) {
+      setStatus("This camera does not support the selected zoom level.", "error");
+    }
+  }
+
+  function zoomIn() {
+    if (!zoomCapabilities) {
+      return;
+    }
+
+    setZoom(currentZoom + (zoomCapabilities.step || 0.1));
+  }
+
+  function zoomOut() {
+    if (!zoomCapabilities) {
+      return;
+    }
+
+    setZoom(currentZoom - (zoomCapabilities.step || 0.1));
+  }
+
+  function toggleGuide() {
+    scanGuideElement.classList.toggle("visible");
+    guideButton.classList.toggle("active", scanGuideElement.classList.contains("visible"));
+  }
+
+  function startNoReadReminder() {
+    stopNoReadReminder();
+
+    noReadReminderTimer = window.setInterval(function () {
+      if (!isCameraRunning || isTorchOn) {
+        return;
+      }
+
+      if (Date.now() - lastSuccessfulScanTime > 10000) {
+        setStatus("No reads yet. Try Zoom, Flash, or a different angle.", "warning");
+      }
+    }, 10000);
+  }
+
+  function stopNoReadReminder() {
+    if (noReadReminderTimer) {
+      window.clearInterval(noReadReminderTimer);
+      noReadReminderTimer = null;
+    }
+  }
+
+  function startCamera(preferredDeviceId) {
+    if (isCameraRunning) {
+      stopCameraIfRunning();
+      return;
+    }
+
+    if (typeof ZXing === "undefined") {
+      setStatus("Barcode library failed to load. Check internet/content blockers, then reload.", "error");
+      return;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setStatus("No camera available. This browser does not support camera access.", "error");
+      return;
+    }
+
+    initAudio();
+    setStatus("Requesting camera permission…");
+    showCameraOverlay("Requesting camera permission…");
+
+    try {
+      codeReader = createReader();
+    } catch (error) {
+      codeReader = null;
+      setStatus("Scanner failed to start: " + (error && error.message ? error.message : "Unknown error"), "error");
+      showCameraOverlay("Scanner failed to start");
+      return;
+    }
+
+    var videoConstraints;
+
+    if (preferredDeviceId) {
+      videoConstraints = {
+        deviceId: { exact: preferredDeviceId },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      };
+    } else {
+      videoConstraints = {
+        facingMode: "environment",
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      };
+    }
+
+    codeReader.decodeFromConstraints(
+      { video: videoConstraints, audio: false },
+      cameraElement,
+      function (result, error, controls) {
+        if (controls) {
+          streamControls = controls;
+        }
+
+        if (result) {
+          onDecodeResult(result);
+        } else if (error) {
+          onDecodeError(error);
+        }
+      }
+    ).then(function () {
+      isCameraRunning = true;
+      currentDeviceId = preferredDeviceId || currentDeviceId;
+      lastSuccessfulScanTime = Date.now();
+
+      hideCameraOverlay();
+      setButtonsForRunningState(true);
+      setStatus("Camera running. Use ＋ to zoom toward distant barcodes.");
+
+      setupCameraControls();
+      startNoReadReminder();
+    }).catch(function (error) {
+      isCameraRunning = false;
+      setButtonsForRunningState(false);
+      showCameraOverlay("Camera unavailable");
+
+      var message = error && error.message ? error.message : String(error);
+      var lowerMessage = message.toLowerCase();
+
+      if (
+        lowerMessage.indexOf("permission") !== -1 ||
+        lowerMessage.indexOf("denied") !== -1 ||
+        lowerMessage.indexOf("notallowed") !== -1
+      ) {
+        setStatus("Camera permission denied. Allow camera access in browser settings, then try again.", "error");
+      } else if (
+        lowerMessage.indexOf("notfound") !== -1 ||
+        lowerMessage.indexOf("no camera") !== -1 ||
+        lowerMessage.indexOf("no cameras") !== -1
+      ) {
+        setStatus("No camera available.", "error");
+      } else {
+        setStatus("Scanner failed to start: " + message, "error");
+      }
+
+      if (codeReader) {
+        try {
+          codeReader.reset();
+        } catch (resetError) {
+          // Ignore cleanup errors.
+        }
+
+        codeReader = null;
+      }
+
+      streamControls = null;
+      cameraTrack = null;
+    });
+  }
+
+  function stopCameraIfRunning() {
+    if (!codeReader || !isCameraRunning) {
+      return;
+    }
+
+    stopNoReadReminder();
+
+    if (isTorchOn && cameraTrack) {
+      try {
+        cameraTrack.applyConstraints({
+          advanced: [{ torch: false }]
+        });
+      } catch (error) {
+        // Ignore torch cleanup errors.
+      }
+
+      isTorchOn = false;
+      torchButton.classList.remove("torch-on");
+    }
+
+    try {
+      if (streamControls && typeof streamControls.stop === "function") {
+        streamControls.stop();
+      }
+    } catch (error) {
+      // Continue with reader cleanup.
+    }
+
+    try {
+      codeReader.reset();
+    } catch (error) {
+      // Ignore cleanup errors.
+    }
+
+    isCameraRunning = false;
+    streamControls = null;
+    cameraTrack = null;
+    codeReader = null;
+    zoomCapabilities = null;
+    currentZoom = 1;
+    setButtonsForRunningState(false);
+    torchButton.disabled = true;
+    cameraButton.disabled = true;
+    updateZoomButtons();
+    showCameraOverlay("Camera preview will appear here");
+    setStatus("Camera stopped.");
+  }
+
+  async function switchCamera() {
+    if (!isCameraRunning || cameraDevices.length < 2) {
+      return;
+    }
+
+    var currentIndex = cameraDevices.findIndex(function (device) {
+      return device.deviceId === currentDeviceId;
+    });
+
+    var nextIndex = (currentIndex + 1) % cameraDevices.length;
+    var nextDevice = cameraDevices[nextIndex];
+
+    if (!nextDevice) {
+      return;
+    }
+
+    stopCameraIfRunning();
+    startCamera(nextDevice.deviceId);
+  }
+
+  function downloadCsv(filename, csvContent) {
+    var blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement("a");
+
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    window.setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 1000);
+  }
+
+  async function exportCsv() {
+    if (scans.length === 0) {
+      setStatus("No scans to export.", "error");
+      return;
+    }
+
+    var csvContent = buildCsvContent();
+    var filename = buildExportFilename();
+
+    var canShareFiles = !!(
+      navigator.share &&
+      navigator.canShare &&
+      window.File &&
+      window.FileList &&
+      window.Blob
+    );
+
+    if (canShareFiles) {
+      try {
+        var csvFile = new File([csvContent], filename, { type: "text/csv" });
+        var shareData = {
+          title: "Barcode export",
+          text: scans.length + " scanned barcode" + (scans.length === 1 ? "" : "s") + ".",
+          files: [csvFile]
+        };
+
+        if (navigator.canShare(shareData)) {
+          await navigator.share(shareData);
+
+          hasUnexportedChanges = false;
+          setStatus("Shared " + filename + ".", "success");
+          return;
+        }
+      } catch (error) {
+        if (error && error.name === "AbortError") {
+          setStatus("Share cancelled.");
+          return;
+        }
+
+        setStatus("Sharing failed. Downloading the CSV instead.", "error");
+      }
+    }
+
+    downloadCsv(filename, csvContent);
+
+    hasUnexportedChanges = false;
+    setStatus("Downloaded " + filename + ".", "success");
+  }
+
+  function clearScans() {
+    if (scans.length === 0) {
+      return;
+    }
+
+    if (!window.confirm("Clear all " + scans.length + " scanned barcodes? This cannot be undone.")) {
+      return;
+    }
+
+    scans = [];
+    editingIndex = null;
+    lastAction = null;
+    lastScan.text = null;
+    lastScan.timestamp = 0;
+    hasUnexportedChanges = false;
+
+    saveScans();
+    updateUi();
+    setStatus("All scans cleared.");
+  }
+
+  function addManualBarcode() {
+    var value = manualInputElement.value.trim().toUpperCase();
+
+    if (!value) {
+      setStatus("Enter an Asset ID before pressing Add.", "error");
+      return;
+    }
+
+    if (!/^M\d{5}$/.test(value) && !/^R\d{8}$/.test(value)) {
+      setStatus("Asset ID must be M12345 or R12345678 format.", "error");
+      return;
+    }
+
+    if (addScan(value, "manual")) {
+      manualInputElement.value = "";
+      manualInputElement.blur();
+    }
+  }
+
+  function extractAssetIdCandidates(text) {
+    if (!text) {
+      return [];
+    }
+
+    var possibleMatches = text.match(/\b[MR]\d{5,8}\b/gi);
+
+    if (!possibleMatches) {
+      return [];
+    }
+
+    var validMatches = [];
+
+    possibleMatches.forEach(function (match) {
+      var cleaned = match.toUpperCase();
+
+      if (/^M\d{5}$/.test(cleaned) || /^R\d{8}$/.test(cleaned)) {
+        if (validMatches.indexOf(cleaned) === -1) {
+          validMatches.push(cleaned);
+        }
+      }
+    });
+
+    return validMatches;
+  }
+
+  function showOcrChoices(candidates) {
+    ocrChoicesElement.innerHTML = "";
+    ocrChoicesElement.classList.add("visible");
+
+    candidates.forEach(function (candidate) {
+      var choiceButton = document.createElement("button");
+      choiceButton.className = "ocr-choice";
+      choiceButton.type = "button";
+      choiceButton.textContent = candidate;
+
+      choiceButton.addEventListener("click", function () {
+        manualInputElement.value = candidate;
+        manualInputElement.focus();
+        hideOcrChoices();
+        setStatus("Selected " + candidate + ". Press Add to save it.", "success");
+      });
+
+      ocrChoicesElement.appendChild(choiceButton);
+    });
+  }
+
+  function hideOcrChoices() {
+    ocrChoicesElement.innerHTML = "";
+    ocrChoicesElement.classList.remove("visible");
+  }
+
+  async function getOcrWorker() {
+    if (ocrWorker) {
+      return ocrWorker;
+    }
+
+    if (typeof Tesseract === "undefined" || typeof Tesseract.createWorker !== "function") {
+      throw new Error("OCR library failed to load.");
+    }
+
+    setStatus("Loading OCR engine…");
+
+    ocrWorker = await Tesseract.createWorker("eng", 1);
+
+    await ocrWorker.setParameters({
+      tessedit_char_whitelist: "MR0123456789"
+    });
+
+    return ocrWorker;
+  }
+
+  async function runOcr(file) {
+    if (isOcrRunning) {
+      return;
+    }
+
+    if (!file) {
+      setStatus("No image selected for OCR.", "error");
+      return;
+    }
+
+    if (typeof Tesseract === "undefined" || typeof Tesseract.createWorker !== "function") {
+      setStatus("OCR library failed to load. Check internet/content blockers, then reload.", "error");
+      return;
+    }
+
+    isOcrRunning = true;
+    ocrButton.disabled = true;
+    ocrButton.textContent = "…";
+    setStatus("Reading Asset ID…");
+
+    try {
+      var worker = await getOcrWorker();
+      var recognition = await worker.recognize(file);
+      var text = recognition && recognition.data && recognition.data.text ? recognition.data.text : "";
+      var candidates = extractAssetIdCandidates(text);
+
+      if (candidates.length === 0) {
+        setStatus("OCR could not find an Asset ID in M12345 or R12345678 format.", "error");
+        return;
+      }
+
+      if (candidates.length === 1) {
+        if (!addScan(candidates[0], "ocr")) {
+          manualInputElement.value = candidates[0];
+          manualInputElement.focus();
+        }
+
+        return;
+      }
+
+      showOcrChoices(candidates);
+      setStatus("OCR found " + candidates.length + " possible Asset IDs. Tap the correct one.", "success");
+    } catch (error) {
+      var message = error && error.message ? error.message : String(error);
+      setStatus("OCR failed: " + message, "error");
+    } finally {
+      isOcrRunning = false;
+      ocrButton.disabled = false;
+      ocrButton.textContent = "OCR";
+      ocrFileInput.value = "";
+    }
+  }
+
+  function preventCameraZoomGestures(event) {
+    event.preventDefault();
+  }
+
+  cameraCardElement.addEventListener("gesturestart", preventCameraZoomGestures);
+  cameraCardElement.addEventListener("gesturechange", preventCameraZoomGestures);
+  cameraCardElement.addEventListener("gestureend", preventCameraZoomGestures);
+
+  startButton.addEventListener("click", function () {
+    startCamera();
+  });
+
+  exportButton.addEventListener("click", function () {
+    exportCsv();
+  });
+
+  clearButton.addEventListener("click", clearScans);
+  undoButton.addEventListener("click", undoLastAction);
+  addManualButton.addEventListener("click", addManualBarcode);
+  torchButton.addEventListener("click", toggleTorch);
+  cameraButton.addEventListener("click", switchCamera);
+  guideButton.addEventListener("click", toggleGuide);
+  zoomInButton.addEventListener("click", zoomIn);
+  zoomOutButton.addEventListener("click", zoomOut);
+
+  ocrButton.addEventListener("click", function () {
+    if (isOcrRunning) {
+      return;
+    }
+
+    ocrFileInput.click();
+  });
+
+  ocrFileInput.addEventListener("change", function () {
+    var file = ocrFileInput.files && ocrFileInput.files[0];
+
+    if (file) {
+      runOcr(file);
+    }
+  });
+
+  searchInputElement.addEventListener("input", updateUi);
+
+  venueInputElement.addEventListener("input", function () {
+    metadata.venue = venueInputElement.value;
+    saveMetadata();
+  });
+
+  transferInputElement.addEventListener("input", function () {
+    metadata.transfer = transferInputElement.value;
+    saveMetadata();
+  });
+
+  manualInputElement.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addManualBarcode();
+    }
+  });
+
+  window.addEventListener("pagehide", stopCameraIfRunning);
+
+  window.addEventListener("beforeunload", function (event) {
+    stopCameraIfRunning();
+
+    if (hasUnexportedChanges && scans.length > 0) {
+      event.preventDefault();
+      event.returnValue = "";
+      return "";
+    }
+  });
+
+  venueInputElement.value = metadata.venue;
+  transferInputElement.value = metadata.transfer;
+  updateUi();
+
+  if (typeof ZXing === "undefined") {
+    setStatus("Barcode library failed to load. Check internet/content blockers, then reload.", "error");
+    showCameraOverlay("Library failed to load");
+  } else {
+    setStatus("Ready. Press Start to use the camera.");
+  }
+})();
+</script>
+
+</body>
+</html>
