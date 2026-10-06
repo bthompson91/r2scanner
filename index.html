@@ -165,7 +165,7 @@
 
   #reader {
     width: 100%;
-    min-height: 240px;
+    min-height: 300px;
     background: black;
   }
 
@@ -173,7 +173,7 @@
     width: 100% !important;
     height: auto !important;
     display: block;
-    border-radius: 0;
+    object-fit: cover;
   }
 
   #reader img[alt="Info icon"] {
@@ -209,6 +209,17 @@
 
   .scan-flash.active {
     opacity: 1;
+  }
+
+  .hint {
+    margin: -6px 0 14px;
+    padding: 10px 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.4;
   }
 
   .section-title {
@@ -283,7 +294,7 @@
     }
 
     #reader {
-      min-height: 360px;
+      min-height: 420px;
     }
   }
 </style>
@@ -314,6 +325,10 @@
     <div class="scan-flash" id="scanFlash"></div>
   </section>
 
+  <div class="hint">
+    Hold the barcode roughly 10–25 cm away and keep it flat and well lit. The scanner now examines the full camera image, so you do not need to align it inside a small box. For long shelf labels, rotate the phone sideways if needed.
+  </div>
+
   <section>
     <div class="section-title">
       <span>Scanned Barcodes</span>
@@ -334,6 +349,7 @@
 
   var scanner = null;
   var isCameraRunning = false;
+  var audioContext = null;
   var lastScan = {
     text: null,
     timestamp: 0
@@ -355,17 +371,21 @@
   function loadScans() {
     try {
       var stored = localStorage.getItem(STORAGE_KEY);
+
       if (!stored) {
         return [];
       }
 
       var parsed = JSON.parse(stored);
+
       if (!Array.isArray(parsed)) {
         return [];
       }
 
       return parsed.filter(function (item) {
-        return item && typeof item.barcode === "string" && typeof item.timestamp === "number";
+        return item &&
+          typeof item.barcode === "string" &&
+          typeof item.timestamp === "number";
       }).map(function (item) {
         return {
           barcode: item.barcode,
@@ -435,6 +455,58 @@
     });
   }
 
+  function initAudio() {
+    if (audioContext) {
+      if (audioContext.state === "suspended") {
+        audioContext.resume();
+      }
+      return;
+    }
+
+    var AudioContextClass = window.AudioContext || window.webkitAudioContext;
+
+    if (!AudioContextClass) {
+      return;
+    }
+
+    try {
+      audioContext = new AudioContextClass();
+    } catch (error) {
+      audioContext = null;
+    }
+  }
+
+  function playBeep() {
+    if (!audioContext) {
+      return;
+    }
+
+    if (audioContext.state === "suspended") {
+      audioContext.resume();
+    }
+
+    try {
+      var oscillator = audioContext.createOscillator();
+      var gainNode = audioContext.createGain();
+
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(1200, audioContext.currentTime);
+      oscillator.frequency.setValueAtTime(1800, audioContext.currentTime + 0.07);
+
+      gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.25, audioContext.currentTime + 0.01);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.18);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.2);
+    } catch (error) {
+      // Audio feedback is optional.
+    }
+  }
+
   function vibrate() {
     if (navigator.vibrate) {
       try {
@@ -447,6 +519,7 @@
 
   function flashSuccess() {
     scanFlashElement.classList.add("active");
+
     window.setTimeout(function () {
       scanFlashElement.classList.remove("active");
     }, 180);
@@ -472,12 +545,13 @@
 
     saveScans();
     updateUi();
+    playBeep();
     vibrate();
     flashSuccess();
     setStatus("Scanned: " + barcode, "success");
   }
 
-  function onScanSuccess(decodedText, decodedResult) {
+  function onScanSuccess(decodedText) {
     if (typeof decodedText !== "string" || decodedText.length === 0) {
       return;
     }
@@ -485,9 +559,8 @@
     addScan(decodedText);
   }
 
-  function onScanFailure(error) {
-    // Continuous scanning produces frequent "no code found" messages.
-    // These are normal and should not replace useful status information.
+  function onScanFailure() {
+    // Continuous scanning commonly reports frames where no code was found.
   }
 
   function showCameraOverlay(message) {
@@ -510,7 +583,7 @@
       return;
     }
 
-    if (typeof Html5Qrcode === "undefined") {
+    if (typeof Html5Qrcode === "undefined" || typeof Html5QrcodeSupportedFormats === "undefined") {
       setStatus("Library failed to load. Check your internet connection and reload the page.", "error");
       return;
     }
@@ -520,6 +593,7 @@
       return;
     }
 
+    initAudio();
     setStatus("Requesting camera permission…");
     showCameraOverlay("Requesting camera permission…");
 
@@ -534,7 +608,10 @@
           Html5QrcodeSupportedFormats.CODE_39,
           Html5QrcodeSupportedFormats.QR_CODE
         ],
-        verbose: false
+        verbose: false,
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: false
+        }
       });
     } catch (error) {
       scanner = null;
@@ -544,19 +621,15 @@
     }
 
     var cameraConfig = {
-      facingMode: "environment"
+      facingMode: "environment",
+      width: { ideal: 1920 },
+      height: { ideal: 1080 }
     };
 
     var scanConfig = {
-      fps: 10,
-      qrbox: function (viewfinderWidth, viewfinderHeight) {
-        var edge = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.75);
-        return {
-          width: edge,
-          height: Math.floor(edge * 0.6)
-        };
-      },
-      aspectRatio: 1.333333,
+      fps: 15,
+      qrbox: undefined,
+      aspectRatio: undefined,
       disableFlip: false
     };
 
@@ -569,26 +642,32 @@
       isCameraRunning = true;
       hideCameraOverlay();
       setButtonsForRunningState(true);
-      setStatus("Camera running. Point it at a barcode.");
+      setStatus("Camera running. Full-frame scanning active.");
     }).catch(function (error) {
       isCameraRunning = false;
       setButtonsForRunningState(false);
       showCameraOverlay("Camera unavailable");
 
       var message = error && error.message ? error.message : String(error);
+      var lowerMessage = message.toLowerCase();
 
       if (
-        message.toLowerCase().indexOf("permission") !== -1 ||
-        message.toLowerCase().indexOf("denied") !== -1 ||
-        message.toLowerCase().indexOf("notallowed") !== -1
+        lowerMessage.indexOf("permission") !== -1 ||
+        lowerMessage.indexOf("denied") !== -1 ||
+        lowerMessage.indexOf("notallowed") !== -1
       ) {
         setStatus("Camera permission denied. Allow camera access in Safari settings, then try again.", "error");
       } else if (
-        message.toLowerCase().indexOf("notfound") !== -1 ||
-        message.toLowerCase().indexOf("no camera") !== -1 ||
-        message.toLowerCase().indexOf("no cameras") !== -1
+        lowerMessage.indexOf("notfound") !== -1 ||
+        lowerMessage.indexOf("no camera") !== -1 ||
+        lowerMessage.indexOf("no cameras") !== -1
       ) {
         setStatus("No camera available.", "error");
+      } else if (
+        lowerMessage.indexOf("overconstrained") !== -1 ||
+        lowerMessage.indexOf("constraint") !== -1
+      ) {
+        setStatus("Camera could not start with high-resolution settings. Try reloading or use a different camera.", "error");
       } else {
         setStatus("Scanner failed to start: " + message, "error");
       }
@@ -599,6 +678,7 @@
         } catch (clearError) {
           // Ignore cleanup errors.
         }
+
         scanner = null;
       }
     });
@@ -686,7 +766,7 @@
   window.addEventListener("pagehide", stopCameraIfRunning);
   window.addEventListener("beforeunload", stopCameraIfRunning);
 
-  if (typeof Html5Qrcode === "undefined") {
+  if (typeof Html5Qrcode === "undefined" || typeof Html5QrcodeSupportedFormats === "undefined") {
     setStatus("Library failed to load. Check your internet connection and reload the page.", "error");
     showCameraOverlay("Library failed to load");
   } else {
