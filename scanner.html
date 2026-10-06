@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Barcode Scanner CSV</title>
+ 
+<style>
+body {
+font-family: Arial, sans-serif;
+margin: 15px;
+}
+ 
+video {
+width: 100%;
+max-height: 400px;
+background: black;
+border-radius: 10px;
+}
+ 
+button {
+width: 100%;
+padding: 12px;
+margin-top: 10px;
+font-size: 16px;
+}
+ 
+#count {
+margin: 10px 0;
+font-weight: bold;
+}
+ 
+table {
+width: 100%;
+border-collapse: collapse;
+margin-top: 10px;
+}
+ 
+th, td {
+border: 1px solid #ddd;
+padding: 6px;
+word-break: break-all;
+}
+ 
+th {
+background: #f0f0f0;
+}
+</style>
+</head>
+ 
+<body>
+ 
+<h2>Barcode Scanner</h2>
+ 
+<video id="video" autoplay playsinline></video>
+ 
+<button onclick="startScanner()">Start Scanner</button>
+<button onclick="downloadCSV()">Export CSV</button>
+<button onclick="clearScans()">Clear List</button>
+ 
+<div id="count">0 scans</div>
+ 
+<table>
+<thead>
+<tr>
+<th>Timestamp</th>
+<th>Barcode</th>
+</tr>
+</thead>
+<tbody id="results"></tbody>
+</table>
+ 
+<script>
+let scans = [];
+let lastScan = "";
+let detector;
+let scanning = false;
+ 
+async function startScanner() {
+ 
+if (!('BarcodeDetector' in window)) {
+alert("BarcodeDetector not supported on this device/browser.");
+return;
+}
+ 
+detector = new BarcodeDetector({
+formats: [
+"qr_code",
+"code_128",
+"ean_13",
+"ean_8",
+"upc_a",
+"upc_e",
+"code_39"
+]
+});
+ 
+const stream = await navigator.mediaDevices.getUserMedia({
+video: {
+facingMode: "environment"
+}
+});
+ 
+const video = document.getElementById("video");
+video.srcObject = stream;
+ 
+if (!scanning) {
+scanning = true;
+scanLoop();
+}
+}
+ 
+async function scanLoop() {
+ 
+const video = document.getElementById("video");
+ 
+try {
+const barcodes = await detector.detect(video);
+ 
+if (barcodes.length > 0) {
+const value = barcodes[0].rawValue;
+ 
+if (value !== lastScan) {
+ 
+lastScan = value;
+ 
+const timestamp = new Date().toISOString();
+ 
+scans.push({
+timestamp,
+barcode: value
+});
+ 
+updateTable();
+ 
+if (navigator.vibrate) {
+navigator.vibrate(100);
+}
+}
+}
+} catch (e) {
+console.log(e);
+}
+ 
+setTimeout(scanLoop, 300);
+}
+ 
+function updateTable() {
+ 
+document.getElementById("count").innerText =
+scans.length + " scans";
+ 
+const tbody = document.getElementById("results");
+ 
+tbody.innerHTML = scans.map(s => `
+<tr>
+<td>${s.timestamp}</td>
+<td>${s.barcode}</td>
+</tr>
+`).join('');
+}
+ 
+function clearScans() {
+scans = [];
+lastScan = "";
+updateTable();
+}
+ 
+function downloadCSV() {
+ 
+let csv = "Timestamp,Barcode\n";
+ 
+scans.forEach(s => {
+csv += `"${s.timestamp}","${s.barcode}"\n`;
+});
+ 
+const blob = new Blob([csv], {
+type: "text/csv"
+});
+ 
+const url = URL.createObjectURL(blob);
+ 
+const a = document.createElement("a");
+a.href = url;
+a.download = "barcodes.csv";
+a.click();
+ 
+URL.revokeObjectURL(url);
+}
+</script>
+ 
+</body>
+</html>
