@@ -176,10 +176,6 @@
     object-fit: cover;
   }
 
-  #reader img[alt="Info icon"] {
-    display: none;
-  }
-
   .camera-overlay {
     position: absolute;
     inset: 0;
@@ -326,7 +322,7 @@
   </section>
 
   <div class="hint">
-    Hold the barcode roughly 10–25 cm away and keep it flat and well lit. The scanner examines the full camera image, so you do not need to align it inside a small box. For long shelf labels, rotate the phone sideways if needed.
+    Hold the barcode roughly 10–25 cm away, keep it flat and well lit, and avoid glare. The scanner examines the full camera image. For long retail barcodes, rotate the phone sideways if needed.
   </div>
 
   <section>
@@ -560,7 +556,7 @@
   }
 
   function onScanFailure() {
-    // Continuous scanning commonly reports frames where no code was found.
+    // Continuous scanning commonly reports frames where no barcode was found.
   }
 
   function showCameraOverlay(message) {
@@ -608,10 +604,8 @@
           Html5QrcodeSupportedFormats.CODE_39,
           Html5QrcodeSupportedFormats.QR_CODE
         ],
-        verbose: false,
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: false
-        }
+        useBarCodeDetectorIfSupported: false,
+        verbose: false
       });
     } catch (error) {
       scanner = null;
@@ -621,17 +615,11 @@
     }
 
     var cameraConfig = {
-      videoConstraints: {
-        facingMode: "environment",
-        width: { ideal: 1920 },
-        height: { ideal: 1080 }
-      }
+      facingMode: "environment"
     };
 
     var scanConfig = {
       fps: 15,
-      qrbox: undefined,
-      aspectRatio: undefined,
       disableFlip: false
     };
 
@@ -665,11 +653,6 @@
         lowerMessage.indexOf("no cameras") !== -1
       ) {
         setStatus("No camera available.", "error");
-      } else if (
-        lowerMessage.indexOf("overconstrained") !== -1 ||
-        lowerMessage.indexOf("constraint") !== -1
-      ) {
-        setStatus("Camera could not start with high-resolution settings. Try reloading or use a different camera.", "error");
       } else {
         setStatus("Scanner failed to start: " + message, "error");
       }
