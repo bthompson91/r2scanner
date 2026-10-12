@@ -1061,6 +1061,17 @@ main{padding:10px;max-width:720px;margin:0 auto}
     });
   }
 
+  function unloadOpenCv() {
+    var script = document.querySelector("script[data-opencv]");
+
+    if (script) {
+      script.remove();
+    }
+
+    window.cv = undefined;
+    openCvPromise = null;
+  }
+
   function loadOpenCv() {
     if (window.cv && window.cv.Mat) return Promise.resolve(window.cv);
 
@@ -1424,6 +1435,8 @@ main{padding:10px;max-width:720px;margin:0 auto}
       } catch (error) {
         // Perspective assist is optional.
       }
+
+      unloadOpenCv();
     }
 
     hardBusy = false;
