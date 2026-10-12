@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0b1220">
-<title>Barcode Scanner v0.28</title>
+<title>Barcode Scanner v0.29</title>
 <style>
 :root{color-scheme:dark;--bg:#0b1220;--panel:#121a2b;--panel2:#182238;--text:#eaf0ff;--muted:#9aa8c7;--accent:#2f81f7;--success:#22c55e;--danger:#ef4444;--warning:#f59e0b;--border:#26314a}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
@@ -59,6 +59,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
 .scan-guide{position:absolute;inset:0;z-index:4;pointer-events:none}
 .scan-guide::before{content:"";position:absolute;left:7%;right:7%;top:40%;height:20%;border:3px solid rgba(34,197,94,.8);border-radius:14px}
 .scan-guide.qr::before{left:22%;right:22%;top:20%;bottom:20%;height:auto;border-radius:18px}
+.scan-guide.locked::before{border-color:#f59e0b}
 .scan-guide.hidden{display:none}
 .camera-card::after{content:"";position:absolute;inset:0;border:3px solid transparent;border-radius:inherit;pointer-events:none;z-index:7}
 .camera-card.scanning::after{border-color:rgba(34,197,94,.55);animation:scanPulse 1.7s ease-in-out infinite}
@@ -105,7 +106,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
 
 <header class="toolbar">
   <div class="toolbar-top">
-    <span class="version">v0.28</span>
+    <span class="version">v0.29</span>
     <span class="app-title">Barcode Scanner</span>
     <button class="icon-button" id="cacheButton" type="button" title="Refresh page cache">⟳</button>
   </div>
@@ -167,7 +168,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
   </section>
 
   <div class="hint">
-    Five barcode engines plus OCR run together. Aim the label at the green band; tap the preview or press TRY for a harder scan.
+    The scanner now finds barcode-shaped regions automatically, crops and enlarges them, then reads them. Barcode, QR, and OCR all run together.
   </div>
 
   <section>
@@ -205,7 +206,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
 <script type="module">
 import { readBarcodesFromImageData } from "https://cdn.jsdelivr.net/npm/zxing-wasm@1.3.4/+esm";
 
-const APP_VERSION = "v0.28";
+const APP_VERSION = "v0.29";
 const STORAGE_KEY = "barcode-scanner-scans-v1";
 const METADATA_KEY = "barcode-scanner-metadata-v1";
 const DUP_MS = 1500;
@@ -599,6 +600,102 @@ function scaledCanvas(source, maxWidth) {
   return canvas;
 }
 
+function cropCanvas(source, rect, targetWidth) {
+  const x = Math.max(0, Math.floor(rect.x));
+  const y = Math.max(0, Math.floor(rect.y));
+  const width = Math.min(source.width - x, Math.ceil(rect.width));
+  const height = Math.min(source.height - y, Math.ceil(rect.height));
+
+  if (width < 20 || height < 10) return null;
+
+  const scale = targetWidth ? Math.min(3, targetWidth / width) : 1;
+  const canvas = document.createElement("canvas");
+
+  canvas.width = Math.max(1, Math.round(width * scale));
+  canvas.height = Math.max(1, Math.round(height * scale));
+
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.imageSmoothingEnabled = false;
+  context.drawImage(source, x, y, width, height, 0, 0, canvas.width, canvas.height);
+
+  return canvas;
+}
+
+function detectBarcodeRegion(source) {
+  const small = scaledCanvas(source, 480);
+  const context = small.getContext("2d", { willReadFrequently: true });
+  const imageData = context.getImageData(0, 0, small.width, small.height);
+  const data = imageData.data;
+
+  const width = small.width;
+  const height = small.height;
+  const gray = new Uint8ClampedArray(width * height);
+
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    gray[p] = (data[i] * 299 + data[i + 1] * 587 + data[i + 2] * 114) / 1000;
+  }
+
+  const columnEnergy = new Float32Array(width);
+  const rowEnergy = new Float32Array(height);
+
+  for (let y = 1; y < height; y++) {
+    for (let x = 1; x < width; x++) {
+      const value = Math.abs(gray[y * width + x] - gray[y * width + x - 1]);
+      columnEnergy[x] += value;
+      rowEnergy[y] += value;
+    }
+  }
+
+  const columnMax = Math.max(...columnEnergy);
+  const rowMax = Math.max(...rowEnergy);
+
+  if (!columnMax || !rowMax) return null;
+
+  const columnThreshold = columnMax * 0.28;
+  const rowThreshold = rowMax * 0.28;
+
+  let left = -1;
+  let right = -1;
+  let top = -1;
+  let bottom = -1;
+
+  for (let x = 0; x < width; x++) {
+    if (columnEnergy[x] >= columnThreshold) {
+      if (left === -1) left = x;
+      right = x;
+    }
+  }
+
+  for (let y = 0; y < height; y++) {
+    if (rowEnergy[y] >= rowThreshold) {
+      if (top === -1) top = y;
+      bottom = y;
+    }
+  }
+
+  if (left === -1 || top === -1) return null;
+
+  const scaleX = source.width / width;
+  const scaleY = source.height / height;
+
+  let x = left * scaleX;
+  let y = top * scaleY;
+  let w = (right - left + 1) * scaleX;
+  let h = (bottom - top + 1) * scaleY;
+
+  const padX = Math.max(20, w * 0.22);
+  const padY = Math.max(20, h * 0.55);
+
+  x = Math.max(0, x - padX);
+  y = Math.max(0, y - padY);
+  w = Math.min(source.width - x, w + padX * 2);
+  h = Math.min(source.height - y, h + padY * 2);
+
+  if (w < 40 || h < 20) return null;
+
+  return { x, y, width: w, height: h };
+}
+
 async function decodeZxing(canvas) {
   const context = canvas.getContext("2d", { willReadFrequently: true });
   const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
@@ -684,11 +781,11 @@ function decodeQuagga(canvas) {
   });
 }
 
-async function decodeParallel(canvas) {
+async function decodeParallel(canvas, includeQuagga) {
   const zxingPromise = decodeZxing(canvas).catch(() => null);
   const zbarPromise = decodeZbar(canvas).catch(() => null);
   const jsqrPromise = decodeJsQR(canvas);
-  const quaggaPromise = decodeQuagga(canvas);
+  const quaggaPromise = includeQuagga ? decodeQuagga(canvas) : Promise.resolve(null);
 
   const results = await Promise.all([zxingPromise, zbarPromise, jsqrPromise, quaggaPromise]);
 
@@ -710,6 +807,28 @@ async function decodeHtml5Qrcode(canvas) {
   return null;
 }
 
+async function decodeSmart(source) {
+  const region = detectBarcodeRegion(source);
+
+  const fullPromise = decodeParallel(source, false);
+
+  let regionPromise = Promise.resolve(null);
+
+  if (region) {
+    const crop = cropCanvas(source, region, 1100);
+
+    if (crop) {
+      guideEl.classList.add("locked");
+      setTimeout(() => guideEl.classList.remove("locked"), 450);
+      regionPromise = decodeParallel(crop, true);
+    }
+  }
+
+  const results = await Promise.all([regionPromise, fullPromise]);
+
+  return results.find(result => result?.text) || null;
+}
+
 function scanFrame() {
   if (!cameraOn || busy) return;
 
@@ -718,7 +837,7 @@ function scanFrame() {
 
   frameCount++;
 
-  decodeParallel(source).then(result => {
+  decodeSmart(source).then(result => {
     if (!result || busy) return;
 
     guideEl.classList.toggle("qr", String(result.format).toLowerCase().includes("qr"));
@@ -767,7 +886,7 @@ async function runOcrInBackground(source) {
 function startScanLoop() {
   stopScanLoop();
   cameraCard.classList.add("scanning");
-  scanTimer = setInterval(scanFrame, 180);
+  scanTimer = setInterval(scanFrame, 200);
 }
 
 function stopScanLoop() {
@@ -808,7 +927,7 @@ async function forceScan() {
   let found = null;
 
   for (const canvas of variants) {
-    const result = await decodeParallel(canvas);
+    const result = await decodeSmart(canvas);
 
     if (result?.text) {
       found = result;
@@ -1002,7 +1121,7 @@ async function startCamera(preferredId) {
     overlayEl.classList.remove("visible");
     startButton.textContent = "Stop";
     startButton.classList.add("success");
-    setStatus("Camera running. Five barcode engines and OCR are active.");
+    setStatus("Camera running. Barcode region detection is active.");
 
     setupControls();
     startReminder();
