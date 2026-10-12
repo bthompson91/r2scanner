@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0b1220">
-<title>Barcode Scanner v0.21</title>
+<title>Barcode Scanner v0.24</title>
 <style>
 :root{color-scheme:dark;--bg:#0b1220;--panel:#121a2b;--panel2:#182238;--text:#eaf0ff;--muted:#9aa8c7;--accent:#2f81f7;--success:#22c55e;--danger:#ef4444;--warning:#f59e0b;--border:#26314a}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
@@ -17,6 +17,7 @@ body{padding-bottom:env(safe-area-inset-bottom)}
 .toolbar-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
 .version{font-size:10px;font-weight:700;color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:2px 7px}
 .app-title{font-size:13px;font-weight:800}
+#cacheButton{min-width:38px;min-height:38px;font-size:14px}
 .metadata-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px}
 .metadata-input{min-width:0;min-height:40px;border:1px solid var(--border);border-radius:12px;background:#0e1626;color:var(--text);font-size:14px;padding:0 10px}
 .metadata-input:focus{outline:none;border-color:var(--accent)}
@@ -114,9 +115,9 @@ main{padding:10px;max-width:720px;margin:0 auto}
 
 <header class="toolbar">
   <div class="toolbar-top">
-    <span class="version">v0.21</span>
+    <span class="version">v0.24</span>
     <span class="app-title">Barcode Scanner</span>
-    <span></span>
+    <button class="icon-button" id="cacheButton" type="button" title="Refresh page cache">⟳</button>
   </div>
 
   <div class="metadata-row">
@@ -143,7 +144,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
 <main>
   <section class="card">
     <div class="manual-row">
-      <input class="manual-input" id="manualInput" type="text" placeholder="M12345 / R12345678" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" aria-label="Enter or OCR an asset ID">
+      <input class="manual-input" id="manualInput" type="text" inputmode="numeric" placeholder="12345 → R00012345" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" aria-label="Enter Asset ID digits; R prefix and zero padding are added automatically">
       <button class="button success" id="addManualButton" type="button">Add</button>
       <button class="button ocr" id="ocrButton" type="button">OCR</button>
     </div>
@@ -227,7 +228,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
 (function () {
   "use strict";
 
-  var APP_VERSION = "v0.21";
+  var APP_VERSION = "v0.24";
   var STORAGE_KEY = "barcode-scanner-scans-v1";
   var METADATA_KEY = "barcode-scanner-metadata-v1";
   var DUP_MS = 1500;
@@ -1048,17 +1049,6 @@ main{padding:10px;max-width:720px;margin:0 auto}
     });
   }
 
-  function unloadOpenCv() {
-    var script = document.querySelector("script[data-opencv]");
-
-    if (script) {
-      script.remove();
-    }
-
-    window.cv = undefined;
-    openCvPromise = null;
-  }
-
   function loadOpenCv() {
     if (window.cv && window.cv.Mat) return Promise.resolve(window.cv);
 
@@ -1422,8 +1412,6 @@ main{padding:10px;max-width:720px;margin:0 auto}
       } catch (error) {
         // Perspective assist is optional.
       }
-
-      unloadOpenCv();
     }
 
     hardBusy = false;
@@ -1971,13 +1959,40 @@ async function switchCamera() {
     setStatus("All scans cleared.");
   }
 
+  function formatManualEntry(rawValue) {
+    var value = String(rawValue || "").trim().toUpperCase();
+
+    if (/^[A-Z]\d{5}$/.test(value) || /^R\d{8}$/.test(value)) {
+      return value;
+    }
+
+    var digits = value.replace(/^R/, "").replace(/\D/g, "");
+
+    if (!digits) return "";
+
+    return "R" + digits.padStart(8, "0").slice(-8);
+  }
+
+  function updateManualFormat() {
+    var formatted = formatManualEntry(manualEl.value);
+
+    if (formatted && formatted !== manualEl.value) {
+      manualEl.value = formatted;
+
+      var caretPosition = manualEl.value.length;
+      manualEl.setSelectionRange(caretPosition, caretPosition);
+    }
+  }
+
   function addManual() {
-    var value = manualEl.value.trim().toUpperCase();
+    var value = formatManualEntry(manualEl.value);
 
     if (!value) {
       setStatus("Enter an Asset ID first.", "error");
       return;
     }
+
+    manualEl.value = value;
 
     if (!/^[A-Z]\d{5}$/.test(value) && !/^R\d{8}$/.test(value)) {
       setStatus("Asset ID must be A12345 or R12345678.", "error");
@@ -2028,6 +2043,7 @@ async function switchCamera() {
 
       button.addEventListener("click", function () {
         manualEl.value = candidate;
+        updateManualFormat();
         manualEl.focus();
         hideChoices();
         setStatus("Selected " + candidate + ". Press Add.", "success");
@@ -2285,6 +2301,8 @@ async function switchCamera() {
 
   clearButton.addEventListener("click", clearScans);
   undoButton.addEventListener("click", undo);
+  $("cacheButton").addEventListener("click", refreshPageCache);
+
   addButton.addEventListener("click", addManual);
   torchButton.addEventListener("click", toggleTorch);
   cameraButton.addEventListener("click", switchCamera);
@@ -2328,12 +2346,21 @@ async function switchCamera() {
     saveMetadata();
   });
 
+  manualEl.addEventListener("input", updateManualFormat);
+
   manualEl.addEventListener("keydown", function (event) {
     if (event.key === "Enter") {
       event.preventDefault();
       addManual();
     }
   });
+
+  function refreshPageCache() {
+    var url = new URL(window.location.href);
+
+    url.searchParams.set("cache", Date.now());
+    window.location.replace(url.toString());
+  }
 
   window.addEventListener("pagehide", stopCamera);
 
