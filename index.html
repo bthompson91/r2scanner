@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0b1220">
-<title>Barcode Scanner v0.26</title>
+<title>Barcode Scanner v0.28</title>
 <style>
 :root{color-scheme:dark;--bg:#0b1220;--panel:#121a2b;--panel2:#182238;--text:#eaf0ff;--muted:#9aa8c7;--accent:#2f81f7;--success:#22c55e;--danger:#ef4444;--warning:#f59e0b;--border:#26314a}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
@@ -105,7 +105,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
 
 <header class="toolbar">
   <div class="toolbar-top">
-    <span class="version">v0.26</span>
+    <span class="version">v0.28</span>
     <span class="app-title">Barcode Scanner</span>
     <button class="icon-button" id="cacheButton" type="button" title="Refresh page cache">⟳</button>
   </div>
@@ -167,7 +167,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
   </section>
 
   <div class="hint">
-    Aim the barcode at the green band. Tap the preview or press TRY for a harder multi-angle scan. Use OCR for a damaged label.
+    Five barcode engines plus OCR run together. Aim the label at the green band; tap the preview or press TRY for a harder scan.
   </div>
 
   <section>
@@ -197,12 +197,15 @@ main{padding:10px;max-width:720px;margin:0 auto}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.11.0/dist/index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/quagga2@1.8.0/dist/quagga.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js"></script>
 
 <script type="module">
 import { readBarcodesFromImageData } from "https://cdn.jsdelivr.net/npm/zxing-wasm@1.3.4/+esm";
 
-const APP_VERSION = "v0.26";
+const APP_VERSION = "v0.28";
 const STORAGE_KEY = "barcode-scanner-scans-v1";
 const METADATA_KEY = "barcode-scanner-metadata-v1";
 const DUP_MS = 1500;
@@ -257,6 +260,7 @@ let scanTimer = null;
 let busy = false;
 let ocrBusy = false;
 let ocrWorker = null;
+let frameCount = 0;
 let lastScan = { text: null, time: 0 };
 let lastGoodScan = 0;
 let lastAction = null;
@@ -510,8 +514,9 @@ function setScanState(state) {
   if (state) cameraCard.classList.add(state);
 }
 
-function showConfirm(text) {
+function showConfirm(text, source) {
   pendingScan = String(text).trim();
+  pendingSource = source || "camera";
   confirmCode.textContent = pendingScan;
   confirmModal.classList.add("visible");
   busy = true;
@@ -524,14 +529,16 @@ function closeConfirm(accepted) {
   busy = false;
 
   const text = pendingScan;
+  const source = pendingSource;
   pendingScan = null;
+  pendingSource = "camera";
 
   if (!text) return;
 
   const clean = text.trim().toUpperCase();
 
   if (accepted) {
-    if (!addScan(clean, "camera")) setScanState("error");
+    if (!addScan(clean, source)) setScanState("error");
     return;
   }
 
@@ -578,32 +585,127 @@ function rotatedCanvas(source, degrees) {
   return canvas;
 }
 
-async function decodeCanvas(canvas) {
+function scaledCanvas(source, maxWidth) {
+  if (source.width <= maxWidth) return source;
+
+  const scale = maxWidth / source.width;
+  const canvas = document.createElement("canvas");
+
+  canvas.width = Math.round(source.width * scale);
+  canvas.height = Math.round(source.height * scale);
+
+  canvas.getContext("2d", { willReadFrequently: true }).drawImage(source, 0, 0, canvas.width, canvas.height);
+
+  return canvas;
+}
+
+async function decodeZxing(canvas) {
   const context = canvas.getContext("2d", { willReadFrequently: true });
   const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
 
-  try {
-    const zxingResults = await readBarcodesFromImageData(imageData, {
-      tryHarder: true,
-      formats: ["Code39", "Code128", "EAN13", "EAN8", "UPCA", "UPCE", "QRCode"]
-    });
+  const results = await readBarcodesFromImageData(imageData, {
+    tryHarder: true,
+    formats: ["Code39", "Code128", "EAN13", "EAN8", "UPCA", "UPCE", "QRCode"]
+  });
 
-    if (zxingResults.length) {
-      return { text: zxingResults[0].text, format: zxingResults[0].format, engine: "ZXing" };
+  if (!results.length) return null;
+
+  return { text: results[0].text, format: results[0].format, engine: "ZXing" };
+}
+
+async function decodeZbar(canvas) {
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+
+  const symbols = await zbarWasm.scanImageData(imageData);
+
+  if (!symbols.length) return null;
+
+  return { text: symbols[0].decode(), format: symbols[0].typeName, engine: "ZBar" };
+}
+
+function decodeJsQR(canvas) {
+  if (typeof jsQR !== "function") return Promise.resolve(null);
+
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+
+  return new Promise(resolve => {
+    setTimeout(() => {
+      try {
+        const result = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "attemptBoth" });
+
+        if (result?.data) {
+          resolve({ text: result.data, format: "QRCode", engine: "jsQR" });
+          return;
+        }
+      } catch {}
+
+      resolve(null);
+    }, 0);
+  });
+}
+
+function decodeQuagga(canvas) {
+  if (typeof Quagga === "undefined") return Promise.resolve(null);
+
+  return new Promise(resolve => {
+    let settled = false;
+
+    const finish = result => {
+      if (settled) return;
+      settled = true;
+
+      const code = result?.codeResult?.code;
+
+      if (code) {
+        resolve({ text: code, format: result.codeResult.format || "Quagga", engine: "Quagga" });
+        return;
+      }
+
+      resolve(null);
+    };
+
+    try {
+      Quagga.decodeSingle({
+        src: canvas.toDataURL("image/jpeg", 0.9),
+        numOfWorkers: 0,
+        locate: true,
+        inputStream: { size: 900 },
+        decoder: {
+          readers: ["code_128_reader", "code_39_reader", "ean_reader", "ean_8_reader", "upc_reader", "upc_e_reader"]
+        }
+      }, finish);
+
+      setTimeout(() => finish(null), 2500);
+    } catch {
+      finish(null);
     }
-  } catch {
-    // Fall through to ZBar.
-  }
+  });
+}
+
+async function decodeParallel(canvas) {
+  const zxingPromise = decodeZxing(canvas).catch(() => null);
+  const zbarPromise = decodeZbar(canvas).catch(() => null);
+  const jsqrPromise = decodeJsQR(canvas);
+  const quaggaPromise = decodeQuagga(canvas);
+
+  const results = await Promise.all([zxingPromise, zbarPromise, jsqrPromise, quaggaPromise]);
+
+  return results.find(result => result?.text) || null;
+}
+
+async function decodeHtml5Qrcode(canvas) {
+  if (typeof Html5Qrcode === "undefined") return null;
 
   try {
-    const symbols = await zbarWasm.scanImageData(imageData);
+    const scanner = new Html5Qrcode("unused-html5-qrcode-region", { verbose: false });
+    const text = await scanner.scanFileV2(canvas.toDataURL("image/png"), false);
 
-    if (symbols.length) {
-      return { text: symbols[0].decode(), format: symbols[0].typeName, engine: "ZBar" };
+    if (text?.decodedText) {
+      return { text: text.decodedText, format: text.result?.format?.formatName || "HTML5-QRCode", engine: "html5-qrcode" };
     }
-  } catch {
-    // No result.
-  }
+  } catch {}
 
   return null;
 }
@@ -614,18 +716,58 @@ function scanFrame() {
   const source = grabFrame();
   if (!source) return;
 
-  decodeCanvas(source).then(result => {
+  frameCount++;
+
+  decodeParallel(source).then(result => {
     if (!result || busy) return;
 
     guideEl.classList.toggle("qr", String(result.format).toLowerCase().includes("qr"));
-    showConfirm(result.text);
+    showConfirm(result.text, "camera");
   });
+
+  if (frameCount % 3 === 0) {
+    runOcrInBackground(source);
+  }
+}
+
+async function runOcrInBackground(source) {
+  if (ocrBusy || busy || !cameraOn) return;
+
+  if (typeof Tesseract === "undefined") return;
+
+  ocrBusy = true;
+
+  const small = scaledCanvas(source, 1000);
+
+  try {
+    if (!ocrWorker) {
+      ocrWorker = await Tesseract.createWorker("eng", 1);
+      await ocrWorker.setParameters({
+        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+        tessedit_pageseg_mode: "6"
+      });
+    }
+
+    const result = await ocrWorker.recognize(small);
+    const candidates = assetCandidates(result?.data?.text || "");
+
+    if (candidates.length === 1 && !busy) {
+      showConfirm(candidates[0], "ocr");
+    } else if (candidates.length > 1 && !busy) {
+      showChoices(candidates);
+      setStatus("OCR found " + candidates.length + " possible IDs. Tap one.", "warning");
+    }
+  } catch {
+    // OCR is a parallel fallback; ignore failures.
+  } finally {
+    ocrBusy = false;
+  }
 }
 
 function startScanLoop() {
   stopScanLoop();
   cameraCard.classList.add("scanning");
-  scanTimer = setInterval(scanFrame, 140);
+  scanTimer = setInterval(scanFrame, 180);
 }
 
 function stopScanLoop() {
@@ -666,11 +808,22 @@ async function forceScan() {
   let found = null;
 
   for (const canvas of variants) {
-    const result = await decodeCanvas(canvas);
+    const result = await decodeParallel(canvas);
 
     if (result?.text) {
       found = result;
       break;
+    }
+  }
+
+  if (!found) {
+    for (const canvas of variants) {
+      const result = await decodeHtml5Qrcode(canvas);
+
+      if (result?.text) {
+        found = result;
+        break;
+      }
     }
   }
 
@@ -679,7 +832,7 @@ async function forceScan() {
 
   if (found) {
     guideEl.classList.toggle("qr", String(found.format).toLowerCase().includes("qr"));
-    showConfirm(found.text);
+    showConfirm(found.text, "camera");
     return;
   }
 
@@ -849,7 +1002,7 @@ async function startCamera(preferredId) {
     overlayEl.classList.remove("visible");
     startButton.textContent = "Stop";
     startButton.classList.add("success");
-    setStatus("Camera running. Aim the barcode at the green band.");
+    setStatus("Camera running. Five barcode engines and OCR are active.");
 
     setupControls();
     startReminder();
@@ -1030,7 +1183,10 @@ async function runOcr(image) {
   try {
     if (!ocrWorker) {
       ocrWorker = await Tesseract.createWorker("eng", 1);
-      await ocrWorker.setParameters({ tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" });
+      await ocrWorker.setParameters({
+        tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+        tessedit_pageseg_mode: "6"
+      });
     }
 
     const result = await ocrWorker.recognize(image);
@@ -1042,11 +1198,7 @@ async function runOcr(image) {
     }
 
     if (candidates.length === 1) {
-      if (!addScan(candidates[0], "ocr")) {
-        manualEl.value = candidates[0];
-        updateManualFormat();
-        manualEl.focus();
-      }
+      showConfirm(candidates[0], "ocr");
       return;
     }
 
