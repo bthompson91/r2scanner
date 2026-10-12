@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0b1220">
-<title>Barcode Scanner v0.25</title>
+<title>Barcode Scanner v0.26</title>
 <style>
 :root{color-scheme:dark;--bg:#0b1220;--panel:#121a2b;--panel2:#182238;--text:#eaf0ff;--muted:#9aa8c7;--accent:#2f81f7;--success:#22c55e;--danger:#ef4444;--warning:#f59e0b;--border:#26314a}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
@@ -46,7 +46,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
 .ocr-choices{display:none;flex-wrap:wrap;gap:6px;margin-top:8px}
 .ocr-choices.visible{display:flex}
 .ocr-choice{border:1px solid var(--accent);background:rgba(47,129,247,.16);color:#fff;border-radius:999px;padding:8px 12px;font-size:13px;font-weight:700}
-.camera-card{position:relative;background:#000;border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:10px;aspect-ratio:3/4}
+.camera-card{position:relative;background:#000;border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:10px;aspect-ratio:4/3;max-height:46vh;width:100%}
 .camera-card video,.camera-card canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .camera-card video{z-index:1}
 .camera-card canvas{z-index:2;opacity:0;pointer-events:none}
@@ -56,10 +56,10 @@ main{padding:10px;max-width:720px;margin:0 auto}
 .scan-flash{position:absolute;inset:0;z-index:6;background:rgba(34,197,94,.28);border:2px solid var(--success);opacity:0;transition:opacity .12s;pointer-events:none}
 .scan-flash.active{opacity:1}
 .scan-flash.bad{background:rgba(239,68,68,.32);border-color:var(--danger)}
-.scan-guide{position:absolute;inset:0;z-index:4;pointer-events:none;display:none}
-.scan-guide.visible{display:block}
+.scan-guide{position:absolute;inset:0;z-index:4;pointer-events:none}
 .scan-guide::before{content:"";position:absolute;left:7%;right:7%;top:40%;height:20%;border:3px solid rgba(34,197,94,.8);border-radius:14px}
 .scan-guide.qr::before{left:22%;right:22%;top:20%;bottom:20%;height:auto;border-radius:18px}
+.scan-guide.hidden{display:none}
 .camera-card::after{content:"";position:absolute;inset:0;border:3px solid transparent;border-radius:inherit;pointer-events:none;z-index:7}
 .camera-card.scanning::after{border-color:rgba(34,197,94,.55);animation:scanPulse 1.7s ease-in-out infinite}
 .camera-card.found::after{border-color:#f59e0b}
@@ -105,7 +105,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
 
 <header class="toolbar">
   <div class="toolbar-top">
-    <span class="version">v0.25</span>
+    <span class="version">v0.26</span>
     <span class="app-title">Barcode Scanner</span>
     <button class="icon-button" id="cacheButton" type="button" title="Refresh page cache">⟳</button>
   </div>
@@ -202,7 +202,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
 <script type="module">
 import { readBarcodesFromImageData } from "https://cdn.jsdelivr.net/npm/zxing-wasm@1.3.4/+esm";
 
-const APP_VERSION = "v0.25";
+const APP_VERSION = "v0.26";
 const STORAGE_KEY = "barcode-scanner-scans-v1";
 const METADATA_KEY = "barcode-scanner-metadata-v1";
 const DUP_MS = 1500;
@@ -1204,7 +1204,7 @@ $("cacheButton").addEventListener("click", refreshPageCache);
 startButton.addEventListener("click", () => startCamera());
 cameraButton.addEventListener("click", switchCamera);
 torchButton.addEventListener("click", toggleTorch);
-guideButton.addEventListener("click", () => guideEl.classList.toggle("visible"));
+guideButton.addEventListener("click", () => guideEl.classList.toggle("hidden"));
 hardButton.addEventListener("click", forceScan);
 rotButton.addEventListener("click", rotateView);
 zoomInButton.addEventListener("click", () => setZoom(zoom + (zoomCaps?.step || 0.1)));
