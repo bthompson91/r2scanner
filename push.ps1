@@ -1,7 +1,7 @@
 Set-Location -Path $PSScriptRoot
 
 Write-Host ""
-Write-Host "On Call Timesheet - GitHub update"
+Write-Host "R2 Scanner - GitHub update"
 Write-Host ""
 
 # Confirm this is actually a Git repository.
