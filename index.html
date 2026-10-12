@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0b1220">
-<title>Barcode Scanner v0.24</title>
+<title>Barcode Scanner v0.25</title>
 <style>
 :root{color-scheme:dark;--bg:#0b1220;--panel:#121a2b;--panel2:#182238;--text:#eaf0ff;--muted:#9aa8c7;--accent:#2f81f7;--success:#22c55e;--danger:#ef4444;--warning:#f59e0b;--border:#26314a}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
@@ -33,96 +33,86 @@ body{padding-bottom:env(safe-area-inset-bottom)}
 .danger{background:#7f1d1d}
 .success{background:var(--success)}
 .ocr{background:#7c3aed}
-.hard{background:#b45309;font-size:10px;letter-spacing:.04em}
-.rot{background:#334155}
-.dual{background:#0e7490;font-size:10px;letter-spacing:.04em}
-.dual.active{background:#0891b2}
-.camera-control:disabled{opacity:.45}
-.camera-card.rot-90 #camera,.camera-card.rot-90 #freezeFrame,.camera-card.rot-90 #scanGuide{transform:rotate(90deg)}
-.camera-card.rot-180 #camera,.camera-card.rot-180 #freezeFrame,.camera-card.rot-180 #scanGuide{transform:rotate(180deg)}
-.camera-card.rot-270 #camera,.camera-card.rot-270 #freezeFrame,.camera-card.rot-270 #scanGuide{transform:rotate(270deg)}
-.camera-card.hard-active{outline:2px solid #f59e0b;outline-offset:-2px}
-.camera-card::after{content:"";position:absolute;inset:0;border:3px solid transparent;border-radius:inherit;pointer-events:none;z-index:9}
-.camera-card.scanning::after{border-color:rgba(34,197,94,.55);animation:scanPulse 1.7s ease-in-out infinite}
-.camera-card.found::after{border-color:#f59e0b}
-.camera-card.success::after{border-color:#22c55e}
-.camera-card.error::after{border-color:#ef4444}
-@keyframes scanPulse{0%,100%{opacity:.45}50%{opacity:1}}
-.scan-guide.qr::before{content:"";position:absolute;left:24%;right:24%;top:22%;bottom:22%;border:3px solid rgba(34,197,94,.85);border-radius:14px;background:transparent}
-.scan-guide.qr::after{display:none}
-.confirm-code{font-size:30px;font-weight:800;text-align:center;letter-spacing:.04em;margin:10px 0 16px;word-break:break-all}
 .undo{background:#475569}
 .status{margin-top:7px;min-height:18px;font-size:12px;color:var(--muted);text-align:center}
 .status.error{color:#fca5a5;font-weight:600}
 .status.success{color:#86efac;font-weight:700}
 .status.warning{color:#fcd34d;font-weight:700}
 main{padding:10px;max-width:720px;margin:0 auto}
-.card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:8px;margin-bottom:10px}
-.manual-row{display:flex;align-items:center;gap:6px}
-.manual-input{flex:1;min-width:0;min-height:44px;border:1px solid var(--border);border-radius:12px;background:#0e1626;color:var(--text);font-size:16px;padding:0 10px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:10px;margin-bottom:10px}
+.manual-row{display:flex;gap:6px}
+.manual-input{flex:1;min-width:0;min-height:44px;border:1px solid var(--border);border-radius:12px;background:#0e1626;color:var(--text);font-size:15px;padding:0 10px;text-transform:uppercase}
 .manual-input:focus{outline:none;border-color:var(--accent)}
 .ocr-choices{display:none;flex-wrap:wrap;gap:6px;margin-top:8px}
 .ocr-choices.visible{display:flex}
-.ocr-choice{appearance:none;border:1px solid #7c3aed;background:#2e1065;color:#fff;border-radius:999px;min-height:36px;padding:6px 12px;font-size:14px;font-weight:800;font-family:ui-monospace,Menlo,monospace;cursor:pointer}
-.camera-card{position:relative;background:#000;border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:10px}
-#camera{width:100%;height:34vh;min-height:210px;max-height:300px;background:#000;display:block;object-fit:cover}
-#freezeFrame{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;pointer-events:none}
-#freezeFrame.visible{display:block}
-.camera-overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.72);text-align:center;padding:16px;font-size:15px;font-weight:600}
+.ocr-choice{border:1px solid var(--accent);background:rgba(47,129,247,.16);color:#fff;border-radius:999px;padding:8px 12px;font-size:13px;font-weight:700}
+.camera-card{position:relative;background:#000;border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:10px;aspect-ratio:3/4}
+.camera-card video,.camera-card canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.camera-card video{z-index:1}
+.camera-card canvas{z-index:2;opacity:0;pointer-events:none}
+.camera-card canvas.visible{opacity:1}
+.camera-overlay{position:absolute;inset:0;z-index:5;display:none;align-items:center;justify-content:center;text-align:center;padding:20px;color:var(--muted);font-size:13px;background:rgba(11,18,32,.72)}
 .camera-overlay.visible{display:flex}
-.scan-flash{position:absolute;inset:0;pointer-events:none;background:rgba(34,197,94,.32);border:4px solid var(--success);opacity:0;transition:opacity .12s}
+.scan-flash{position:absolute;inset:0;z-index:6;background:rgba(34,197,94,.28);border:2px solid var(--success);opacity:0;transition:opacity .12s;pointer-events:none}
 .scan-flash.active{opacity:1}
 .scan-flash.bad{background:rgba(239,68,68,.32);border-color:var(--danger)}
-.scan-guide{position:absolute;inset:0;pointer-events:none;display:none}
+.scan-guide{position:absolute;inset:0;z-index:4;pointer-events:none;display:none}
 .scan-guide.visible{display:block}
-.scan-guide::before{content:"";position:absolute;left:8%;right:8%;top:50%;height:2px;background:rgba(34,197,94,.75)}
-.scan-guide::after{content:"";position:absolute;top:18%;bottom:18%;left:50%;width:2px;background:rgba(34,197,94,.35)}
-.side-controls{position:absolute;top:10px;z-index:10;display:flex;flex-direction:column;gap:6px}
+.scan-guide::before{content:"";position:absolute;left:7%;right:7%;top:40%;height:20%;border:3px solid rgba(34,197,94,.8);border-radius:14px}
+.scan-guide.qr::before{left:22%;right:22%;top:20%;bottom:20%;height:auto;border-radius:18px}
+.camera-card::after{content:"";position:absolute;inset:0;border:3px solid transparent;border-radius:inherit;pointer-events:none;z-index:7}
+.camera-card.scanning::after{border-color:rgba(34,197,94,.55);animation:scanPulse 1.7s ease-in-out infinite}
+.camera-card.found::after{border-color:#f59e0b}
+.camera-card.success::after{border-color:#22c55e}
+.camera-card.error::after{border-color:#ef4444}
+@keyframes scanPulse{0%,100%{opacity:.4}50%{opacity:1}}
+.side-controls{position:absolute;top:10px;z-index:8;display:flex;flex-direction:column;gap:6px}
 .side-controls.left{left:10px}
 .side-controls.right{right:10px}
 .camera-control{appearance:none;border:1px solid rgba(255,255,255,.18);background:rgba(15,23,42,.78);color:#fff;border-radius:12px;min-width:46px;min-height:38px;padding:5px 7px;font-size:11px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .camera-control:disabled{opacity:.4;cursor:not-allowed}
 .camera-control.torch-on{background:rgba(245,158,11,.9);color:#1f1300;border-color:rgba(245,158,11,.9)}
 .camera-control.active{border-color:var(--accent);background:rgba(47,129,247,.75)}
+.camera-control.hard{background:#b45309;font-size:10px}
+.camera-control.rot{background:#334155}
+.camera-card.rot-90 video,.camera-card.rot-90 canvas{transform:rotate(90deg)}
+.camera-card.rot-180 video,.camera-card.rot-180 canvas{transform:rotate(180deg)}
+.camera-card.rot-270 video,.camera-card.rot-270 canvas{transform:rotate(270deg)}
 .zoom-value{font-size:10px;color:var(--muted);text-align:center;min-height:12px}
 .hint{margin:-4px 0 10px;padding:8px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;color:var(--muted);font-size:11px;line-height:1.35}
+.section-title{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 6px;font-size:13px;font-weight:800}
 .search-row{display:flex;gap:6px;margin-bottom:8px}
 .search-input{flex:1;min-width:0;min-height:40px;border:1px solid var(--border);border-radius:12px;background:#0e1626;color:var(--text);font-size:15px;padding:0 10px}
 .search-input:focus{outline:none;border-color:var(--accent)}
-.section-title{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 6px;font-size:13px;font-weight:800}
 .scan-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .scan-item{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 10px;display:flex;align-items:center;gap:8px}
 .scan-details{flex:1;min-width:0}
 .scan-code{font-family:ui-monospace,Menlo,monospace;font-size:15px;font-weight:700;word-break:break-all}
 .scan-time{color:var(--muted);font-size:10px}
 .scan-actions{display:flex;gap:5px}
-.icon-button{appearance:none;border:1px solid var(--border);background:var(--panel2);color:var(--text);border-radius:10px;width:36px;height:36px;font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer}
-.icon-button.delete{color:#fca5a5;border-color:#7f1d1d;background:#2a1215}
-.icon-button.save{color:#86efac;border-color:#14532d;background:#0f2417}
-.edit-input{flex:1;min-width:0;min-height:36px;border:1px solid var(--accent);border-radius:10px;background:#0e1626;color:var(--text);font-size:15px;font-family:ui-monospace,Menlo,monospace;font-weight:700;padding:0 8px}
-.empty{background:var(--panel);border:1px dashed var(--border);border-radius:12px;padding:16px;text-align:center;color:var(--muted);font-size:13px}
-.modal{position:fixed;inset:0;z-index:100;display:none;background:rgba(0,0,0,.92);padding:12px;padding-top:calc(env(safe-area-inset-top) + 12px)}
-.modal.visible{display:flex;flex-direction:column}
-.modal-title{margin:0 0 8px;font-size:15px;font-weight:800;text-align:center}
-.crop-stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:12px;background:#000;touch-action:none}
-#cropImage{max-width:100%;max-height:100%;display:block;pointer-events:none}
-#cropSelection{position:absolute;border:2px solid var(--success);background:rgba(34,197,94,.16);display:none;pointer-events:none}
-.modal-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;padding-bottom:env(safe-area-inset-bottom)}
-@media(min-width:640px){#camera{height:42vh;max-height:420px}}
+.icon-button{appearance:none;border:1px solid var(--border);background:var(--panel2);color:var(--text);border-radius:10px;min-width:34px;min-height:34px;font-size:12px;font-weight:800}
+.empty{display:none;color:var(--muted);font-size:13px;text-align:center;padding:16px 0}
+.modal{position:fixed;inset:0;z-index:100;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.72);padding:20px}
+.modal.visible{display:flex}
+.modal-card{width:100%;max-width:420px;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px}
+.modal-title{margin:0 0 12px;font-size:16px;text-align:center}
+.modal-actions{display:flex;gap:8px;justify-content:center}
+.modal-actions .button{flex:1}
+.confirm-code{font-size:30px;font-weight:800;text-align:center;letter-spacing:.04em;margin:10px 0 16px;word-break:break-all}
 </style>
 </head>
 <body>
 
 <header class="toolbar">
   <div class="toolbar-top">
-    <span class="version">v0.24</span>
+    <span class="version">v0.25</span>
     <span class="app-title">Barcode Scanner</span>
     <button class="icon-button" id="cacheButton" type="button" title="Refresh page cache">⟳</button>
   </div>
 
   <div class="metadata-row">
     <input class="metadata-input" id="venueInput" type="text" placeholder="Venue" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" aria-label="Venue">
-    <input class="metadata-input" id="transferInput" type="text" placeholder="Transfer number" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" aria-label="Transfer number">
+    <input class="metadata-input" id="transferInput" type="text" placeholder="Transfer" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" aria-label="Transfer">
   </div>
 
   <div class="toolbar-row">
@@ -132,8 +122,8 @@ main{padding:10px;max-width:720px;margin:0 auto}
     </div>
 
     <div class="toolbar-buttons">
-      <button class="button" id="startButton" type="button">Start</button>
-      <button class="button secondary" id="exportButton" type="button" disabled>Share</button>
+      <button class="button success" id="startButton" type="button">Start</button>
+      <button class="button" id="exportButton" type="button" disabled>Share</button>
       <button class="button danger" id="clearButton" type="button" disabled>Clear</button>
     </div>
   </div>
@@ -157,9 +147,9 @@ main{padding:10px;max-width:720px;margin:0 auto}
   <section class="camera-card" id="cameraCard">
     <video id="camera" playsinline muted autoplay></video>
     <canvas id="freezeFrame"></canvas>
-    <div class="camera-overlay" id="cameraOverlay">Camera preview will appear here</div>
+    <div class="camera-overlay visible" id="cameraOverlay">Camera preview will appear here</div>
     <div class="scan-flash" id="scanFlash"></div>
-    <div class="scan-guide visible" id="scanGuide"></div>
+    <div class="scan-guide" id="scanGuide"></div>
 
     <div class="side-controls left">
       <button class="camera-control" id="cameraButton" type="button" disabled>CAM</button>
@@ -170,7 +160,6 @@ main{padding:10px;max-width:720px;margin:0 auto}
 
     <div class="side-controls right">
       <button class="camera-control hard" id="hardButton" type="button">TRY</button>
-      <button class="camera-control dual" id="dualButton" type="button">DUAL</button>
       <button class="camera-control" id="zoomInButton" type="button" disabled>＋</button>
       <div class="zoom-value" id="zoomValue"></div>
       <button class="camera-control" id="zoomOutButton" type="button" disabled>－</button>
@@ -178,7 +167,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
   </section>
 
   <div class="hint">
-    Left: camera, flash, rotate, guide. Right: TRY hard scan, DUAL OCR, and zoom. Tap the preview to hard-scan that spot.
+    Aim the barcode at the green band. Tap the preview or press TRY for a harder multi-angle scan. Use OCR for a damaged label.
   </div>
 
   <section>
@@ -196,2196 +185,1062 @@ main{padding:10px;max-width:720px;margin:0 auto}
   </section>
 </main>
 
-<div class="modal" id="cropModal">
-  <h2 class="modal-title">Drag around the Asset ID</h2>
-
-  <div class="crop-stage" id="cropStage">
-    <img id="cropImage" alt="Selected barcode photo">
-    <div id="cropSelection"></div>
-  </div>
-
-  <div class="modal-actions">
-    <button class="button secondary" id="cropCancelButton" type="button">Cancel</button>
-    <button class="button undo" id="cropRotateButton" type="button">Rotate</button>
-    <button class="button success" id="cropReadButton" type="button">Crop &amp; Read</button>
-  </div>
-</div>
-
 <div class="modal" id="confirmModal">
-  <h2 class="modal-title">Add this scan?</h2>
-
-  <div class="confirm-code" id="confirmCode"></div>
-
-  <div class="modal-actions">
-    <button class="button secondary" id="confirmNoButton" type="button">No</button>
-    <button class="button success" id="confirmYesButton" type="button">Yes</button>
+  <div class="modal-card">
+    <h2 class="modal-title">Add this scan?</h2>
+    <div class="confirm-code" id="confirmCode"></div>
+    <div class="modal-actions">
+      <button class="button secondary" id="confirmNoButton" type="button">No</button>
+      <button class="button success" id="confirmYesButton" type="button">Yes</button>
+    </div>
   </div>
 </div>
 
-<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@undecaf/zbar-wasm@0.11.0/dist/index.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js"></script>
-<script>
-(function () {
-  "use strict";
 
-  var APP_VERSION = "v0.24";
-  var STORAGE_KEY = "barcode-scanner-scans-v1";
-  var METADATA_KEY = "barcode-scanner-metadata-v1";
-  var DUP_MS = 1500;
+<script type="module">
+import { readBarcodesFromImageData } from "https://cdn.jsdelivr.net/npm/zxing-wasm@1.3.4/+esm";
 
-  var reader = null;
-  var controls = null;
-  var track = null;
-  var devices = [];
-  var deviceId = null;
-  var cameraOn = false;
-  var torchOn = false;
-  var ocrBusy = false;
-  var ocrWorker = null;
-  var audio = null;
-  var zoom = 1;
-  var zoomCaps = null;
-  var lastScan = { text: null, time: 0 };
-  var lastGoodScan = 0;
-  var unsaved = false;
-  var lastAction = null;
-  var editing = null;
-  var reminder = null;
+const APP_VERSION = "v0.25";
+const STORAGE_KEY = "barcode-scanner-scans-v1";
+const METADATA_KEY = "barcode-scanner-metadata-v1";
+const DUP_MS = 1500;
 
-  var cropImage = null;
-  var cropStart = null;
-  var cropRect = null;
-  var hardReader = null;
-  var hardBusy = false;
-  var viewRotation = 0;
-  var dualMode = false;
-  var dualTimer = null;
-  var cropRotation = 0;
-  var openCvPromise = null;
-  var cameraStream = null;
-  var scanTimer = null;
-  var confirmBusy = false;
-  var pendingScan = null;
-  var scanDb = null;
-  var goodAudio = null;
-  var badAudio = null;
+const $ = id => document.getElementById(id);
 
-  var $ = function (id) { return document.getElementById(id); };
+const startButton = $("startButton");
+const exportButton = $("exportButton");
+const clearButton = $("clearButton");
+const undoButton = $("undoButton");
+const statusEl = $("status");
+const countEl = $("scanCount");
+const listEl = $("scanList");
+const emptyEl = $("emptyState");
+const overlayEl = $("cameraOverlay");
+const flashEl = $("scanFlash");
+const guideEl = $("scanGuide");
+const freezeEl = $("freezeFrame");
+const videoEl = $("camera");
+const cameraCard = $("cameraCard");
+const cameraButton = $("cameraButton");
+const torchButton = $("torchButton");
+const guideButton = $("guideButton");
+const hardButton = $("hardButton");
+const rotButton = $("rotButton");
+const zoomInButton = $("zoomInButton");
+const zoomOutButton = $("zoomOutButton");
+const zoomValue = $("zoomValue");
+const venueEl = $("venueInput");
+const transferEl = $("transferInput");
+const manualEl = $("manualInput");
+const addButton = $("addManualButton");
+const ocrButton = $("ocrButton");
+const fileInput = $("ocrFileInput");
+const choicesEl = $("ocrChoices");
+const searchEl = $("searchInput");
+const confirmModal = $("confirmModal");
+const confirmCode = $("confirmCode");
+const confirmYes = $("confirmYesButton");
+const confirmNo = $("confirmNoButton");
 
-  var startButton = $("startButton");
-  var exportButton = $("exportButton");
-  var clearButton = $("clearButton");
-  var undoButton = $("undoButton");
-  var statusEl = $("status");
-  var countEl = $("scanCount");
-  var listEl = $("scanList");
-  var emptyEl = $("emptyState");
-  var overlayEl = $("cameraOverlay");
-  var flashEl = $("scanFlash");
-  var guideEl = $("scanGuide");
-  var freezeEl = $("freezeFrame");
-  var videoEl = $("camera");
-  var cameraCard = $("cameraCard");
-  var cameraButton = $("cameraButton");
-  var torchButton = $("torchButton");
-  var guideButton = $("guideButton");
-  var hardButton = $("hardButton");
-  var rotButton = $("rotButton");
-  var dualButton = $("dualButton");
-  var confirmModal = $("confirmModal");
-  var confirmCode = $("confirmCode");
-  var confirmYes = $("confirmYesButton");
-  var confirmNo = $("confirmNoButton");
-  var zoomInButton = $("zoomInButton");
-  var zoomOutButton = $("zoomOutButton");
-  var zoomValue = $("zoomValue");
-  var venueEl = $("venueInput");
-  var transferEl = $("transferInput");
-  var manualEl = $("manualInput");
-  var addButton = $("addManualButton");
-  var ocrButton = $("ocrButton");
-  var fileInput = $("ocrFileInput");
-  var choicesEl = $("ocrChoices");
-  var searchEl = $("searchInput");
-  var cropModal = $("cropModal");
-  var cropStage = $("cropStage");
-  var cropImg = $("cropImage");
-  var cropBox = $("cropSelection");
-  var cropCancel = $("cropCancelButton");
-  var cropRead = $("cropReadButton");
-  var cropRotate = $("cropRotateButton");
+let stream = null;
+let track = null;
+let devices = [];
+let deviceId = null;
+let cameraOn = false;
+let torchOn = false;
+let zoom = 1;
+let zoomCaps = null;
+let viewRotation = 0;
+let scanTimer = null;
+let busy = false;
+let ocrBusy = false;
+let ocrWorker = null;
+let lastScan = { text: null, time: 0 };
+let lastGoodScan = 0;
+let lastAction = null;
+let editing = null;
+let reminder = null;
+let goodAudio = null;
+let badAudio = null;
+let scanDb = null;
 
-  var scans = loadScans();
-  var meta = loadMetadata();
+let scans = loadScans();
+let meta = loadMetadata();
 
-  idbHydrate();
+window.onerror = message => setStatus("App error: " + message, "error");
 
-  window.onerror = function (message) {
-    setStatus("App error: " + message, "error");
-  };
-
-  function loadScans() {
-    try {
-      var raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return [];
-
-      var parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return [];
-
-      return parsed.filter(function (item) {
-        return item && typeof item.barcode === "string" && typeof item.timestamp === "number";
-      });
-    } catch (error) {
-      return [];
-    }
+function loadScans() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter(x => x && typeof x.barcode === "string" && typeof x.timestamp === "number") : [];
+  } catch {
+    return [];
   }
+}
 
-  function loadMetadata() {
-    try {
-      var raw = localStorage.getItem(METADATA_KEY);
-      if (!raw) return { venue: "", transfer: "" };
-
-      var parsed = JSON.parse(raw);
-
-      return {
-        venue: typeof parsed.venue === "string" ? parsed.venue : "",
-        transfer: typeof parsed.transfer === "string" ? parsed.transfer : ""
-      };
-    } catch (error) {
-      return { venue: "", transfer: "" };
-    }
+function loadMetadata() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(METADATA_KEY) || "{}");
+    return { venue: parsed.venue || "", transfer: parsed.transfer || "" };
+  } catch {
+    return { venue: "", transfer: "" };
   }
+}
 
-  function saveMetadata() {
-    try {
-      localStorage.setItem(METADATA_KEY, JSON.stringify(meta));
-    } catch (error) {
-      // Non-critical.
-    }
-  }
+function saveMetadata() {
+  localStorage.setItem(METADATA_KEY, JSON.stringify(meta));
+}
 
-  function saveScans() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(scans));
-      unsaved = scans.length > 0;
-    } catch (error) {
-      setStatus("Could not save scans locally.", "error");
-    }
+function openScanDb() {
+  return new Promise((resolve, reject) => {
+    if (scanDb) return resolve(scanDb);
+    if (!window.indexedDB) return reject(new Error("IndexedDB unavailable"));
 
-    idbReplaceAll(scans);
-  }
+    const request = indexedDB.open("barcode-scanner", 1);
 
-  function setStatus(message, type) {
-    statusEl.textContent = message;
-    statusEl.className = "status";
-
-    if (type) {
-      statusEl.classList.add(type);
-    }
-  }
-
-  function timeText(timestamp) {
-    var date = new Date(timestamp);
-    var h = String(date.getHours()).padStart(2, "0");
-    var m = String(date.getMinutes()).padStart(2, "0");
-    var s = String(date.getSeconds()).padStart(2, "0");
-    return h + ":" + m + ":" + s;
-  }
-
-  function exportTimestamp(date) {
-    var y = date.getFullYear();
-    var m = String(date.getMonth() + 1).padStart(2, "0");
-    var d = String(date.getDate()).padStart(2, "0");
-    var h = String(date.getHours()).padStart(2, "0");
-    var mi = String(date.getMinutes()).padStart(2, "0");
-    var s = String(date.getSeconds()).padStart(2, "0");
-
-    return y + "-" + m + "-" + d + "-" + h + mi + s;
-  }
-
-  function safeName(value) {
-    return String(value || "")
-      .trim()
-      .replace(/[\\/:*?"<>|]+/g, "-")
-      .replace(/\s+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "");
-  }
-
-  function exportName() {
-    var venue = safeName(venueEl.value);
-    var transfer = safeName(transferEl.value);
-    var name = "barcodes";
-
-    if (venue) name += "-" + venue;
-    if (transfer) name += "-" + transfer;
-
-    return name + "-" + exportTimestamp(new Date()) + ".csv";
-  }
-
-  function csvText() {
-    var output = "";
-
-    scans.forEach(function (scan) {
-      output += scan.barcode + "\n";
-    });
-
-    return output;
-  }
-
-  function findIndex(barcode) {
-    for (var i = 0; i < scans.length; i++) {
-      if (scans[i].barcode === barcode) return i;
-    }
-
-    return -1;
-  }
-
-  function updateUi() {
-    countEl.textContent = String(scans.length);
-    listEl.innerHTML = "";
-    undoButton.disabled = !lastAction;
-
-    if (scans.length === 0) {
-      emptyEl.style.display = "block";
-      emptyEl.textContent = "No barcodes scanned yet.";
-      exportButton.disabled = true;
-      clearButton.disabled = true;
-      return;
-    }
-
-    emptyEl.style.display = "none";
-    exportButton.disabled = false;
-    clearButton.disabled = false;
-
-    var term = searchEl.value.trim().toUpperCase();
-    var shown = 0;
-
-    scans.forEach(function (scan, index) {
-      if (term && scan.barcode.indexOf(term) === -1) return;
-
-      shown++;
-
-      var li = document.createElement("li");
-      li.className = "scan-item";
-
-      if (editing === index) {
-        buildEditor(li, scan, index);
-      } else {
-        buildRow(li, scan, index);
+    request.onupgradeneeded = event => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains("scans")) {
+        db.createObjectStore("scans", { keyPath: "timestamp" });
       }
+    };
 
-      listEl.appendChild(li);
+    request.onsuccess = event => {
+      scanDb = event.target.result;
+      resolve(scanDb);
+    };
+
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function idbReplaceAll(records) {
+  return openScanDb().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction("scans", "readwrite");
+    const store = tx.objectStore("scans");
+    store.clear();
+    records.forEach(record => store.put({ barcode: record.barcode, timestamp: record.timestamp }));
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  })).catch(() => {});
+}
+
+function idbHydrate() {
+  return openScanDb().then(db => new Promise((resolve, reject) => {
+    const request = db.transaction("scans", "readonly").objectStore("scans").getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  })).then(records => {
+    const known = new Set(scans.map(x => x.barcode));
+    const merged = scans.slice();
+
+    records.forEach(record => {
+      if (!record?.barcode || known.has(record.barcode)) return;
+      known.add(record.barcode);
+      merged.push({ barcode: record.barcode, timestamp: record.timestamp });
     });
 
-    if (shown === 0) {
-      emptyEl.style.display = "block";
-      emptyEl.textContent = "No scans match the search.";
-    } else {
-      emptyEl.style.display = "none";
+    merged.sort((a, b) => b.timestamp - a.timestamp);
+
+    if (merged.length !== scans.length) {
+      scans = merged;
+      saveScans();
+      updateUi();
     }
+  }).catch(() => {});
+}
+
+function saveScans() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(scans));
+  } catch {
+    setStatus("Could not save scans locally.", "error");
   }
 
-  function buildRow(li, scan, index) {
-    var details = document.createElement("div");
+  idbReplaceAll(scans);
+}
+
+function setStatus(message, type) {
+  statusEl.textContent = message;
+  statusEl.className = "status";
+  if (type) statusEl.classList.add(type);
+}
+
+function findIndex(barcode) {
+  return scans.findIndex(scan => scan.barcode === barcode);
+}
+
+function updateUi() {
+  countEl.textContent = String(scans.length);
+  listEl.innerHTML = "";
+  undoButton.disabled = !lastAction;
+
+  if (!scans.length) {
+    emptyEl.style.display = "block";
+    exportButton.disabled = true;
+    clearButton.disabled = true;
+    return;
+  }
+
+  emptyEl.style.display = "none";
+  exportButton.disabled = false;
+  clearButton.disabled = false;
+
+  const term = searchEl.value.trim().toUpperCase();
+  let shown = 0;
+
+  scans.forEach((scan, index) => {
+    if (term && !scan.barcode.includes(term)) return;
+    shown++;
+
+    const li = document.createElement("li");
+    li.className = "scan-item";
+
+    const details = document.createElement("div");
     details.className = "scan-details";
 
-    var code = document.createElement("div");
+    const code = document.createElement("div");
     code.className = "scan-code";
     code.textContent = scan.barcode;
 
-    var time = document.createElement("div");
+    const time = document.createElement("div");
     time.className = "scan-time";
-    time.textContent = timeText(scan.timestamp);
+    time.textContent = new Date(scan.timestamp).toLocaleTimeString();
 
-    details.appendChild(code);
-    details.appendChild(time);
+    details.append(code, time);
 
-    var actions = document.createElement("div");
+    const actions = document.createElement("div");
     actions.className = "scan-actions";
 
-    var edit = document.createElement("button");
+    const edit = document.createElement("button");
     edit.className = "icon-button";
     edit.type = "button";
     edit.textContent = "✎";
-    edit.addEventListener("click", function () {
+    edit.addEventListener("click", () => {
       editing = index;
       updateUi();
     });
 
-    var remove = document.createElement("button");
-    remove.className = "icon-button delete";
+    const remove = document.createElement("button");
+    remove.className = "icon-button";
     remove.type = "button";
     remove.textContent = "✕";
-    remove.addEventListener("click", function () {
-      removeScan(index);
-    });
-
-    actions.appendChild(edit);
-    actions.appendChild(remove);
-
-    li.appendChild(details);
-    li.appendChild(actions);
-  }
-
-  function buildEditor(li, scan, index) {
-    var input = document.createElement("input");
-    input.className = "edit-input";
-    input.type = "text";
-    input.value = scan.barcode;
-    input.autocomplete = "off";
-    input.autocorrect = "off";
-    input.autocapitalize = "characters";
-    input.spellcheck = false;
-
-    var actions = document.createElement("div");
-    actions.className = "scan-actions";
-
-    var save = document.createElement("button");
-    save.className = "icon-button save";
-    save.type = "button";
-    save.textContent = "✓";
-    save.addEventListener("click", function () {
-      saveEdit(index, input.value);
-    });
-
-    var cancel = document.createElement("button");
-    cancel.className = "icon-button";
-    cancel.type = "button";
-    cancel.textContent = "✕";
-    cancel.addEventListener("click", function () {
+    remove.addEventListener("click", () => {
+      lastAction = { type: "remove", scan: scans[index], index };
+      scans.splice(index, 1);
       editing = null;
+      saveScans();
       updateUi();
+      setStatus("Removed " + scan.barcode, "warning");
     });
 
-    actions.appendChild(save);
-    actions.appendChild(cancel);
+    actions.append(edit, remove);
+    li.append(details, actions);
+    listEl.appendChild(li);
+  });
 
-    li.appendChild(input);
-    li.appendChild(actions);
-
-    input.addEventListener("keydown", function (event) {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        saveEdit(index, input.value);
-      } else if (event.key === "Escape") {
-        editing = null;
-        updateUi();
-      }
-    });
-
-    window.setTimeout(function () {
-      input.focus();
-      input.select();
-    }, 0);
+  if (!shown) {
+    emptyEl.style.display = "block";
+    emptyEl.textContent = "No matching scans.";
   }
+}
 
-  function saveEdit(index, value) {
-    var clean = String(value || "").trim().toUpperCase();
+function addScan(barcode, source) {
+  const clean = String(barcode || "").trim().toUpperCase();
+  if (!clean) return false;
 
-    if (!clean) {
-      setStatus("Barcode cannot be empty.", "error");
-      return;
-    }
+  const now = Date.now();
 
-    var duplicate = findIndex(clean);
+  if (lastScan.text === clean && now - lastScan.time < DUP_MS) return false;
 
-    if (duplicate !== -1 && duplicate !== index) {
-      setStatus("That barcode already exists.", "error");
-      return;
-    }
-
-    var previous = scans[index].barcode;
-
-    if (previous === clean) {
-      editing = null;
-      updateUi();
-      return;
-    }
-
-    scans[index].barcode = clean;
-    editing = null;
-
-    lastAction = {
-      type: "edit",
-      index: index,
-      previous: previous
-    };
-
-    saveScans();
-    updateUi();
-    setStatus("Updated to " + clean, "success");
-  }
-
-  function removeScan(index) {
-    if (index < 0 || index >= scans.length) return;
-
-    var barcode = scans[index].barcode;
-
-    if (!window.confirm("Remove " + barcode + "?")) return;
-
-    var removed = scans.splice(index, 1)[0];
-
-    if (editing === index) {
-      editing = null;
-    } else if (editing !== null && editing > index) {
-      editing = editing - 1;
-    }
-
-    lastAction = {
-      type: "delete",
-      index: index,
-      scan: removed
-    };
-
-    saveScans();
-    updateUi();
-    setStatus("Removed " + barcode);
-  }
-
-  function undo() {
-    if (!lastAction) return;
-
-    var action = lastAction;
-
-    if (action.type === "add") {
-      var index = findIndex(action.barcode);
-
-      if (index !== -1) scans.splice(index, 1);
-
-      setStatus("Undo: removed " + action.barcode);
-    } else if (action.type === "edit") {
-      if (action.index >= 0 && action.index < scans.length) {
-        scans[action.index].barcode = action.previous;
-      }
-
-      setStatus("Undo: restored " + action.previous);
-    } else if (action.type === "delete") {
-      var insertAt = Math.min(action.index, scans.length);
-      scans.splice(insertAt, 0, action.scan);
-      setStatus("Undo: restored " + action.scan.barcode);
-    }
-
-    lastAction = null;
-    saveScans();
-    updateUi();
-  }
-
-  function initAudio() {
-    if (audio) {
-      if (audio.state === "suspended") audio.resume();
-      return;
-    }
-
-    var AudioContextClass = window.AudioContext || window.webkitAudioContext;
-
-    if (!AudioContextClass) return;
-
-    try {
-      audio = new AudioContextClass();
-    } catch (error) {
-      audio = null;
-    }
-  }
-
-  function playSound(sound) {
-    if (!sound) return;
-
-    try {
-      sound.currentTime = 0;
-      sound.play();
-    } catch (error) {
-      // Browser may require a user interaction first.
-    }
-  }
-
-  function goodSound() {
-    if (!goodAudio) {
-      goodAudio = new Audio("ding.mp3");
-    }
-
-    playSound(goodAudio);
-  }
-
-  function badSound() {
-    if (!badAudio) {
-      badAudio = new Audio("error.mp3");
-    }
-
-    playSound(badAudio);
-  }
-
-  function vibrate(pattern) {
-    if (navigator.vibrate) {
-      try {
-        navigator.vibrate(pattern);
-      } catch (error) {
-        // Optional.
-      }
-    }
-  }
-
-  function goodFlash() {
-    flashEl.classList.remove("bad");
-    flashEl.classList.add("active");
-
-    window.setTimeout(function () {
-      flashEl.classList.remove("active");
-    }, 180);
-  }
-
-  function badFlash() {
-    flashEl.classList.add("bad");
-    flashEl.classList.add("active");
-
-    window.setTimeout(function () {
-      flashEl.classList.remove("active");
-    }, 350);
-  }
-
-  function freeze() {
-    var source = grabVideoCanvas();
-
-    if (!source) return;
-
-    freezeEl.width = source.width;
-    freezeEl.height = source.height;
-
-    var context = freezeEl.getContext("2d");
-
-    if (!context) return;
-
-    context.drawImage(source, 0, 0);
-    freezeEl.classList.add("visible");
-
-    window.setTimeout(function () {
-      freezeEl.classList.remove("visible");
-    }, 550);
-  }
-
-  function addScan(barcode, source) {
-    var clean = String(barcode || "").trim().toUpperCase();
-
-    if (!clean) return false;
-
-    var now = Date.now();
-
-    if (lastScan.text === clean && now - lastScan.time < DUP_MS) {
-      return false;
-    }
-
-    var existing = findIndex(clean);
-
-    if (existing !== -1) {
-      lastScan.text = clean;
-      lastScan.time = now;
-
-      badSound();
-      vibrate([120, 70, 120]);
-      badFlash();
-      setScanState("error");
-      setStatus("Already scanned: " + clean, "warning");
-
-      return false;
-    }
-
-    lastScan.text = clean;
-    lastScan.time = now;
-    lastGoodScan = now;
-
-    scans.unshift({
-      barcode: clean,
-      timestamp: now
-    });
-
-    editing = null;
-
-    lastAction = {
-      type: "add",
-      barcode: clean
-    };
-
-    saveScans();
-    updateUi();
-    goodSound();
-    vibrate(80);
-    goodFlash();
-    setScanState("success");
-    freeze();
-
-    setStatus((source === "ocr" ? "OCR added: " : "Added: ") + clean, "success");
-
-    return true;
-  }
-
-  function showError(message) {
-    overlayEl.textContent = message;
-    overlayEl.classList.add("visible");
-  }
-
-  function hideOverlay() {
-    overlayEl.classList.remove("visible");
-  }
-
-  function setCameraButton(running) {
-    startButton.textContent = running ? "Stop" : "Start";
-    startButton.classList.toggle("success", running);
-  }
-
-  function makeHardReader() {
-    var hints = new Map();
-    var formats = [
-      ZXing.BarcodeFormat.CODE_128,
-      ZXing.BarcodeFormat.EAN_13,
-      ZXing.BarcodeFormat.EAN_8,
-      ZXing.BarcodeFormat.UPC_A,
-      ZXing.BarcodeFormat.UPC_E,
-      ZXing.BarcodeFormat.CODE_39,
-      ZXing.BarcodeFormat.QR_CODE
-    ];
-
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
-    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-
-    return new ZXing.BrowserMultiFormatReader(hints, 100);
-  }
-
-  function grabVideoCanvas() {
-    var width = videoEl.videoWidth;
-    var height = videoEl.videoHeight;
-
-    if (!width || !height) return null;
-
-    var canvas = document.createElement("canvas");
-    var swap = viewRotation === 90 || viewRotation === 270;
-
-    canvas.width = swap ? height : width;
-    canvas.height = swap ? width : height;
-
-    var context = canvas.getContext("2d", { willReadFrequently: true });
-
-    context.save();
-    context.translate(canvas.width / 2, canvas.height / 2);
-    context.rotate(viewRotation * Math.PI / 180);
-    context.drawImage(videoEl, -width / 2, -height / 2, width, height);
-    context.restore();
-
-    return canvas;
-  }
-
-  function grabScanRegionCanvas(source) {
-    var x = Math.round(source.width * 0.08);
-    var y = Math.round(source.height * 0.30);
-    var width = Math.round(source.width * 0.84);
-    var height = Math.round(source.height * 0.40);
-
-    var canvas = document.createElement("canvas");
-
-    canvas.width = width;
-    canvas.height = height;
-
-    canvas.getContext("2d", { willReadFrequently: true }).drawImage(source, x, y, width, height, 0, 0, width, height);
-
-    return canvas;
-  }
-
-  function enhanceCanvas(canvas) {
-    try {
-      var context = canvas.getContext("2d", { willReadFrequently: true });
-      var image = context.getImageData(0, 0, canvas.width, canvas.height);
-      var data = image.data;
-
-      for (var i = 0; i < data.length; i += 4) {
-        var gray = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114 - 128) * 1.45 + 128;
-
-        gray = gray < 0 ? 0 : gray > 255 ? 255 : gray;
-
-        data[i] = gray;
-        data[i + 1] = gray;
-        data[i + 2] = gray;
-      }
-
-      context.putImageData(image, 0, 0);
-    } catch (error) {
-      // Non-critical.
-    }
-
-    return canvas;
-  }
-
-  function makeVariantCanvas(source, options) {
-    var cropScale = options.cropScale || 1;
-    var centreX = typeof options.centreX === "number" ? options.centreX : source.width / 2;
-    var centreY = typeof options.centreY === "number" ? options.centreY : source.height / 2;
-    var rotation = options.rotation || 0;
-
-    var cropWidth = Math.max(1, Math.min(source.width, Math.round(source.width * cropScale)));
-    var cropHeight = Math.max(1, Math.min(source.height, Math.round(source.height * cropScale)));
-
-    var sourceX = Math.round(centreX - cropWidth / 2);
-    var sourceY = Math.round(centreY - cropHeight / 2);
-
-    sourceX = Math.max(0, Math.min(source.width - cropWidth, sourceX));
-    sourceY = Math.max(0, Math.min(source.height - cropHeight, sourceY));
-
-    var swap = rotation === 90 || rotation === 270;
-    var canvas = document.createElement("canvas");
-    canvas.width = swap ? cropHeight : cropWidth;
-    canvas.height = swap ? cropWidth : cropHeight;
-
-    var context = canvas.getContext("2d", { willReadFrequently: true });
-
-    context.save();
-    context.translate(canvas.width / 2, canvas.height / 2);
-    context.rotate(rotation * Math.PI / 180);
-    context.drawImage(source, sourceX, sourceY, cropWidth, cropHeight, -cropWidth / 2, -cropHeight / 2, cropWidth, cropHeight);
-    context.restore();
-
-    return options.enhance ? enhanceCanvas(canvas) : canvas;
-  }
-
-  function decodeCanvas(canvas, useHardReader) {
-    var decoder = useHardReader ? hardReader : reader;
-
-    if (!decoder || typeof decoder.decodeFromCanvas !== "function") return null;
-
-    try {
-      return decoder.decodeFromCanvas(canvas);
-    } catch (error) {
-      return null;
-    }
-  }
-
-  function openScanDb() {
-    return new Promise(function (resolve, reject) {
-      if (scanDb) {
-        resolve(scanDb);
-        return;
-      }
-
-      if (!window.indexedDB) {
-        reject(new Error("IndexedDB unavailable"));
-        return;
-      }
-
-      var request = indexedDB.open("barcode-scanner", 1);
-
-      request.onupgradeneeded = function (event) {
-        var db = event.target.result;
-
-        if (!db.objectStoreNames.contains("scans")) {
-          db.createObjectStore("scans", { keyPath: "timestamp" });
-        }
-      };
-
-      request.onsuccess = function (event) {
-        scanDb = event.target.result;
-        resolve(scanDb);
-      };
-
-      request.onerror = function () {
-        reject(request.error || new Error("Could not open IndexedDB"));
-      };
-    });
-  }
-
-  function idbReplaceAll(records) {
-    return openScanDb().then(function (db) {
-      return new Promise(function (resolve, reject) {
-        var transaction = db.transaction("scans", "readwrite");
-        var store = transaction.objectStore("scans");
-
-        store.clear();
-
-        records.forEach(function (record) {
-          store.put({
-            barcode: record.barcode,
-            timestamp: record.timestamp
-          });
-        });
-
-        transaction.oncomplete = function () { resolve(); };
-        transaction.onerror = function () { reject(transaction.error); };
-      });
-    }).catch(function () {
-      // IndexedDB is a durability mirror; localStorage remains the primary UI store.
-    });
-  }
-
-  function idbHydrate() {
-    return openScanDb().then(function (db) {
-      return new Promise(function (resolve, reject) {
-        var transaction = db.transaction("scans", "readonly");
-        var request = transaction.objectStore("scans").getAll();
-
-        request.onsuccess = function () { resolve(request.result || []); };
-        request.onerror = function () { reject(request.error); };
-      });
-    }).then(function (records) {
-      var merged = scans.slice();
-      var known = {};
-
-      scans.forEach(function (scan) { known[scan.barcode] = true; });
-
-      records.forEach(function (record) {
-        if (!record || !record.barcode || known[record.barcode]) return;
-
-        known[record.barcode] = true;
-        merged.push({
-          barcode: record.barcode,
-          timestamp: record.timestamp
-        });
-      });
-
-      merged.sort(function (a, b) { return b.timestamp - a.timestamp; });
-
-      if (merged.length !== scans.length) {
-        scans = merged;
-        saveScans();
-        updateUi();
-      }
-    }).catch(function () {
-      // Non-critical.
-    });
-  }
-
-  function loadOpenCv() {
-    if (window.cv && window.cv.Mat) return Promise.resolve(window.cv);
-
-    if (!openCvPromise) {
-      openCvPromise = new Promise(function (resolve, reject) {
-        if (!document.querySelector("script[data-opencv]")) {
-          var script = document.createElement("script");
-
-          script.src = "https://docs.opencv.org/4.10.0/opencv.js";
-          script.async = true;
-          script.dataset.opencv = "1";
-          document.head.appendChild(script);
-        }
-
-        var started = Date.now();
-
-        (function waitForCv() {
-          if (window.cv && window.cv.Mat) {
-            resolve(window.cv);
-            return;
-          }
-
-          if (Date.now() - started > 30000) {
-            openCvPromise = null;
-            reject(new Error("OpenCV failed to load."));
-            return;
-          }
-
-          window.setTimeout(waitForCv, 250);
-        })();
-      });
-    }
-
-    return openCvPromise;
-  }
-
-  function orderQuad(points) {
-    var copy = points.slice();
-
-    copy.sort(function (a, b) { return (a.x + a.y) - (b.x + b.y); });
-    var topLeft = copy[0];
-    var bottomRight = copy[3];
-
-    var remaining = [copy[1], copy[2]];
-
-    remaining.sort(function (a, b) { return (a.y - a.x) - (b.y - b.x); });
-    var topRight = remaining[0];
-    var bottomLeft = remaining[1];
-
-    return [topLeft, topRight, bottomRight, bottomLeft];
-  }
-
-  function perspectiveCanvases(source) {
-    var cv = window.cv;
-    var results = [];
-
-    var src = cv.imread(source);
-    var gray = new cv.Mat();
-    var binary = new cv.Mat();
-    var contours = new cv.MatVector();
-    var hierarchy = new cv.Mat();
-
-    try {
-      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-      cv.threshold(gray, binary, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
-      cv.findContours(binary, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-
-      var frameArea = src.rows * src.cols;
-      var candidates = [];
-
-      for (var i = 0; i < contours.size(); i++) {
-        var contour = contours.get(i);
-        var area = cv.contourArea(contour);
-
-        if (area < frameArea * 0.02) continue;
-
-        var perimeter = cv.arcLength(contour, true);
-        var approx = new cv.Mat();
-
-        cv.approxPolyDP(contour, approx, 0.02 * perimeter, true);
-
-        if (approx.rows === 4 && cv.isContourConvex(approx)) {
-          var points = [];
-
-          for (var p = 0; p < 4; p++) {
-            points.push({
-              x: approx.data32S[p * 2],
-              y: approx.data32S[p * 2 + 1]
-            });
-          }
-
-          candidates.push({ area: area, points: orderQuad(points) });
-        }
-
-        approx.delete();
-      }
-
-      candidates.sort(function (a, b) { return b.area - a.area; });
-      candidates = candidates.slice(0, 3);
-
-      candidates.forEach(function (candidate) {
-        var pts = candidate.points;
-
-        function distance(a, b) {
-          return Math.hypot(a.x - b.x, a.y - b.y);
-        }
-
-        var topWidth = distance(pts[0], pts[1]);
-        var bottomWidth = distance(pts[3], pts[2]);
-        var leftHeight = distance(pts[0], pts[3]);
-        var rightHeight = distance(pts[1], pts[2]);
-
-        var outWidth = Math.max(120, Math.round(Math.max(topWidth, bottomWidth)));
-        var outHeight = Math.max(120, Math.round(Math.max(leftHeight, rightHeight)));
-
-        var scale = Math.min(3, 1200 / Math.max(outWidth, outHeight));
-
-        outWidth = Math.max(120, Math.round(outWidth * scale));
-        outHeight = Math.max(120, Math.round(outHeight * scale));
-
-        var srcMat = cv.matFromArray(4, 1, cv.CV_32FC2, [
-          pts[0].x, pts[0].y,
-          pts[1].x, pts[1].y,
-          pts[2].x, pts[2].y,
-          pts[3].x, pts[3].y
-        ]);
-
-        var dstMat = cv.matFromArray(4, 1, cv.CV_32FC2, [
-          0, 0,
-          outWidth, 0,
-          outWidth, outHeight,
-          0, outHeight
-        ]);
-
-        var transform = cv.getPerspectiveTransform(srcMat, dstMat);
-        var warped = new cv.Mat();
-
-        cv.warpPerspective(src, warped, transform, new cv.Size(outWidth, outHeight));
-
-        var canvas = document.createElement("canvas");
-
-        canvas.width = outWidth;
-        canvas.height = outHeight;
-
-        cv.imshow(canvas, warped);
-
-        results.push(canvas);
-
-        srcMat.delete();
-        dstMat.delete();
-        transform.delete();
-        warped.delete();
-      });
-    } finally {
-      src.delete();
-      gray.delete();
-      binary.delete();
-      contours.delete();
-      hierarchy.delete();
-    }
-
-    return results;
-  }
-
-  function setScanState(state) {
-    cameraCard.classList.remove("found", "success", "error");
-
-    if (state) {
-      cameraCard.classList.add(state);
-    }
-  }
-
-  function showConfirm(text) {
-    pendingScan = String(text || "").trim();
-    confirmCode.textContent = pendingScan;
-    confirmModal.classList.add("visible");
-    confirmBusy = true;
-    setScanState("found");
-
-    window.setTimeout(function () {
-      confirmYes.focus();
-    }, 50);
-  }
-
-  function closeConfirm(accepted) {
-    confirmModal.classList.remove("visible");
-    confirmBusy = false;
-
-    var text = pendingScan;
-    pendingScan = null;
-
-    if (!text) return;
-
-    var clean = text.trim().toUpperCase();
-
-    if (accepted) {
-      var added = addScan(clean, "camera");
-
-      if (!added) {
-        setScanState("error");
-      }
-
-      return;
-    }
-
-    lastScan = { text: clean, time: Date.now() };
-    setScanState(null);
-    setStatus("Scan cancelled: " + clean, "warning");
-  }
-
-  function scanFrame() {
-    if (!cameraOn || hardBusy || confirmBusy || !reader) return;
-
-    var source = grabVideoCanvas();
-
-    if (!source) return;
-
-    var region = grabScanRegionCanvas(source);
-    var result = decodeCanvas(region, false);
-
-    if (result && typeof result.getText === "function") {
-      var text = result.getText();
-
-      if (!text) return;
-
-      var format = null;
-
-      try {
-        format = result.getBarcodeFormat();
-      } catch (error) {
-        format = null;
-      }
-
-      guideEl.classList.remove("qr");
-
-      if (format === ZXing.BarcodeFormat.QR_CODE) {
-        guideEl.classList.add("qr");
-      }
-
-      showConfirm(text);
-    }
-  }
-
-  function startScanLoop() {
-    stopScanLoop();
-
-    cameraCard.classList.add("scanning");
-
-    scanTimer = window.setInterval(scanFrame, 120);
-  }
-
-  function stopScanLoop() {
-    if (scanTimer) {
-      window.clearInterval(scanTimer);
-      scanTimer = null;
-    }
-
-    cameraCard.classList.remove("scanning", "found", "success", "error");
-  }
-
-  async function forceScan(event) {
-    if (!cameraOn) {
-      setStatus("Start the camera first.", "error");
-      return;
-    }
-
-    if (hardBusy || confirmBusy) return;
-
-    if (typeof ZXing === "undefined") {
-      setStatus("Barcode library failed to load. Disable content blockers and reload.", "error");
-      return;
-    }
-
-    var source = grabVideoCanvas();
-
-    if (!source) {
-      setStatus("Camera frame not ready yet.", "warning");
-      return;
-    }
-
-    hardBusy = true;
-    hardButton.disabled = true;
-    cameraCard.classList.add("hard-active");
-    setStatus("Trying harder…");
-
-    if (!hardReader) {
-      try {
-        hardReader = makeHardReader();
-      } catch (error) {
-        hardReader = null;
-      }
-    }
-
-    var centreX = source.width / 2;
-    var centreY = source.height / 2;
-
-    if (event) {
-      var rect = videoEl.getBoundingClientRect();
-
-      if (rect.width && rect.height) {
-        centreX = ((event.clientX - rect.left) / rect.width) * source.width;
-        centreY = ((event.clientY - rect.top) / rect.height) * source.height;
-      }
-    }
-
-    var angles = [0, -8, 8, -16, 16];
-    var variants = [
-      { cropScale: 1, rotation: 0, enhance: false },
-      { cropScale: 1, rotation: 0, enhance: true },
-      { cropScale: 0.65, rotation: 0, enhance: false },
-      { cropScale: 0.45, centreX: centreX, centreY: centreY, rotation: 0, enhance: false },
-      { cropScale: 0.45, centreX: centreX, centreY: centreY, rotation: 0, enhance: true }
-    ];
-
-    angles.forEach(function (angle) {
-      variants.push({ cropScale: 1, rotation: angle, enhance: false });
-    });
-
-    [90, 180, 270].forEach(function (angle) {
-      variants.push({ cropScale: 1, rotation: angle, enhance: false });
-    });
-
-    var found = null;
-
-    for (var i = 0; i < variants.length && !found; i++) {
-      var canvas = makeVariantCanvas(source, variants[i]);
-      var result = decodeCanvas(canvas, true);
-
-      if (result && typeof result.getText === "function") {
-        var text = result.getText();
-
-        if (text) found = text;
-      }
-
-      await new Promise(function (resolve) {
-        window.setTimeout(resolve, 10);
-      });
-    }
-
-    if (!found) {
-      setStatus("Looking for barcode shape…");
-
-      try {
-        await loadOpenCv();
-        var warped = perspectiveCanvases(source);
-
-        for (var w = 0; w < warped.length && !found; w++) {
-          var direct = decodeCanvas(warped[w], true);
-
-          if (direct && typeof direct.getText === "function" && direct.getText()) {
-            found = direct.getText();
-            break;
-          }
-
-          var enhanced = decodeCanvas(enhanceCanvas(warped[w]), true);
-
-          if (enhanced && typeof enhanced.getText === "function" && enhanced.getText()) {
-            found = enhanced.getText();
-          }
-        }
-      } catch (error) {
-        // Perspective assist is optional.
-      }
-    }
-
-    hardBusy = false;
-    hardButton.disabled = false;
-    cameraCard.classList.remove("hard-active");
-
-    if (found) {
-      showConfirm(found);
-      return;
-    }
-
+  if (findIndex(clean) !== -1) {
+    lastScan = { text: clean, time: now };
     badSound();
     vibrate([120, 70, 120]);
     badFlash();
     setScanState("error");
-    setStatus("No barcode found. Try zoom, flash, another angle, or OCR.", "warning");
+    setStatus("Already scanned: " + clean, "warning");
+    return false;
   }
 
-  function applyViewRotation() {
-    cameraCard.classList.remove("rot-90", "rot-180", "rot-270");
+  lastScan = { text: clean, time: now };
+  lastGoodScan = now;
 
-    if (viewRotation) {
-      cameraCard.classList.add("rot-" + viewRotation);
+  scans.unshift({ barcode: clean, timestamp: now });
+  editing = null;
+  lastAction = { type: "add", barcode: clean };
+
+  saveScans();
+  updateUi();
+  goodSound();
+  vibrate(80);
+  goodFlash();
+  setScanState("success");
+  freeze();
+
+  setStatus((source === "ocr" ? "OCR added: " : "Added: ") + clean, "success");
+  return true;
+}
+
+function undo() {
+  if (!lastAction) return;
+
+  if (lastAction.type === "add") {
+    const index = findIndex(lastAction.barcode);
+    if (index !== -1) {
+      lastAction = { type: "remove", scan: scans[index], index };
+      scans.splice(index, 1);
     }
-
-    rotButton.classList.toggle("active", viewRotation !== 0);
+  } else {
+    scans.splice(Math.min(lastAction.index, scans.length), 0, lastAction.scan);
+    lastAction = { type: "add", barcode: lastAction.scan.barcode };
   }
 
-  function rotateView() {
-    if (!cameraOn) {
-      setStatus("Start the camera first.", "error");
-      return;
-    }
+  editing = null;
+  saveScans();
+  updateUi();
+  setStatus("Undone.", "success");
+}
 
-    viewRotation = (viewRotation + 90) % 360;
-    applyViewRotation();
-    setStatus("Camera view rotated " + viewRotation + "°.");
+function setScanState(state) {
+  cameraCard.classList.remove("found", "success", "error");
+  if (state) cameraCard.classList.add(state);
+}
+
+function showConfirm(text) {
+  pendingScan = String(text).trim();
+  confirmCode.textContent = pendingScan;
+  confirmModal.classList.add("visible");
+  busy = true;
+  setScanState("found");
+  setTimeout(() => confirmYes.focus(), 50);
+}
+
+function closeConfirm(accepted) {
+  confirmModal.classList.remove("visible");
+  busy = false;
+
+  const text = pendingScan;
+  pendingScan = null;
+
+  if (!text) return;
+
+  const clean = text.trim().toUpperCase();
+
+  if (accepted) {
+    if (!addScan(clean, "camera")) setScanState("error");
+    return;
   }
 
-  function rotateCrop() {
-    if (!cropImage) return;
+  lastScan = { text: clean, time: Date.now() };
+  setScanState(null);
+  setStatus("Scan cancelled: " + clean, "warning");
+}
 
-    var canvas = document.createElement("canvas");
-    var swap = cropRotation === 90 || cropRotation === 270;
+function grabFrame() {
+  const width = videoEl.videoWidth;
+  const height = videoEl.videoHeight;
+  if (!width || !height) return null;
 
-    canvas.width = swap ? cropImage.naturalHeight : cropImage.naturalWidth;
-    canvas.height = swap ? cropImage.naturalWidth : cropImage.naturalHeight;
+  const canvas = document.createElement("canvas");
+  const swap = viewRotation === 90 || viewRotation === 270;
 
-    var context = canvas.getContext("2d");
+  canvas.width = swap ? height : width;
+  canvas.height = swap ? width : height;
 
-    context.translate(canvas.width / 2, canvas.height / 2);
-    context.rotate(Math.PI / 2);
-    context.drawImage(cropImage, -cropImage.naturalWidth / 2, -cropImage.naturalHeight / 2);
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.save();
+  context.translate(canvas.width / 2, canvas.height / 2);
+  context.rotate(viewRotation * Math.PI / 180);
+  context.drawImage(videoEl, -width / 2, -height / 2, width, height);
+  context.restore();
 
-    cropRotation = (cropRotation + 90) % 360;
-    cropImage = canvas;
-    cropImg.src = canvas.toDataURL("image/jpeg", 0.95);
+  return canvas;
+}
 
-    cropStart = null;
-    cropRect = null;
-    cropBox.style.display = "none";
+function rotatedCanvas(source, degrees) {
+  if (!degrees) return source;
 
-    setStatus("Crop rotated 90°. Drag around the Asset ID again.");
+  const swap = degrees === 90 || degrees === 270;
+  const canvas = document.createElement("canvas");
+
+  canvas.width = swap ? source.height : source.width;
+  canvas.height = swap ? source.width : source.height;
+
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.translate(canvas.width / 2, canvas.height / 2);
+  context.rotate(degrees * Math.PI / 180);
+  context.drawImage(source, -source.width / 2, -source.height / 2);
+
+  return canvas;
+}
+
+async function decodeCanvas(canvas) {
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+
+  try {
+    const zxingResults = await readBarcodesFromImageData(imageData, {
+      tryHarder: true,
+      formats: ["Code39", "Code128", "EAN13", "EAN8", "UPCA", "UPCE", "QRCode"]
+    });
+
+    if (zxingResults.length) {
+      return { text: zxingResults[0].text, format: zxingResults[0].format, engine: "ZXing" };
+    }
+  } catch {
+    // Fall through to ZBar.
   }
 
-  function toggleDual() {
-    dualMode = !dualMode;
+  try {
+    const symbols = await zbarWasm.scanImageData(imageData);
 
-    dualButton.classList.toggle("active", dualMode);
-
-    if (dualMode) {
-      startDualOcr();
-      setStatus("Dual mode on: barcode and OCR are both active.", "success");
-    } else {
-      stopDualOcr();
-      setStatus("Dual mode off.");
+    if (symbols.length) {
+      return { text: symbols[0].decode(), format: symbols[0].typeName, engine: "ZBar" };
     }
+  } catch {
+    // No result.
   }
 
-  function startDualOcr() {
-    stopDualOcr();
+  return null;
+}
 
-    dualTimer = window.setInterval(function () {
-      if (!cameraOn || !dualMode || ocrBusy || hardBusy || confirmBusy) return;
+function scanFrame() {
+  if (!cameraOn || busy) return;
 
-      var source = grabVideoCanvas();
+  const source = grabFrame();
+  if (!source) return;
 
-      if (!source) return;
+  decodeCanvas(source).then(result => {
+    if (!result || busy) return;
 
-      var canvas = makeVariantCanvas(source, { cropScale: 0.7, rotation: 0, enhance: true });
+    guideEl.classList.toggle("qr", String(result.format).toLowerCase().includes("qr"));
+    showConfirm(result.text);
+  });
+}
 
-      runOcr(canvas, true);
-    }, 3000);
+function startScanLoop() {
+  stopScanLoop();
+  cameraCard.classList.add("scanning");
+  scanTimer = setInterval(scanFrame, 140);
+}
+
+function stopScanLoop() {
+  if (scanTimer) {
+    clearInterval(scanTimer);
+    scanTimer = null;
+  }
+  cameraCard.classList.remove("scanning", "found", "success", "error");
+}
+
+async function forceScan() {
+  if (!cameraOn) {
+    setStatus("Start the camera first.", "error");
+    return;
   }
 
-  function stopDualOcr() {
-    if (dualTimer) {
-      window.clearInterval(dualTimer);
-      dualTimer = null;
-    }
+  if (busy) return;
+
+  busy = true;
+  hardButton.disabled = true;
+  setStatus("Trying harder…");
+
+  const frames = [];
+
+  for (let i = 0; i < 5 && frames.length < 5; i++) {
+    const frame = grabFrame();
+    if (frame) frames.push(frame);
+    await new Promise(resolve => setTimeout(resolve, 110));
   }
 
-  function makeReader() {
-    var hints = new Map();
-    var formats = [
-      ZXing.BarcodeFormat.CODE_128,
-      ZXing.BarcodeFormat.EAN_13,
-      ZXing.BarcodeFormat.EAN_8,
-      ZXing.BarcodeFormat.UPC_A,
-      ZXing.BarcodeFormat.UPC_E,
-      ZXing.BarcodeFormat.CODE_39,
-      ZXing.BarcodeFormat.QR_CODE
-    ];
+  const variants = [];
 
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+  frames.forEach(frame => {
+    variants.push(frame);
+    [90, 180, 270].forEach(angle => variants.push(rotatedCanvas(frame, angle)));
+  });
 
-    return new ZXing.BrowserMultiFormatReader(hints, 100);
-  }
+  let found = null;
 
-  function getTrack() {
-    if (!videoEl.srcObject) return null;
+  for (const canvas of variants) {
+    const result = await decodeCanvas(canvas);
 
-    var tracks = videoEl.srcObject.getVideoTracks();
-
-    return tracks && tracks.length ? tracks[0] : null;
-  }
-
-  function updateZoomButtons() {
-    if (!zoomCaps) {
-      zoomInButton.disabled = true;
-      zoomOutButton.disabled = true;
-      zoomValue.textContent = "";
-      return;
-    }
-
-    zoomOutButton.disabled = zoom <= zoomCaps.min + 0.001;
-    zoomInButton.disabled = zoom >= zoomCaps.max - 0.001;
-    zoomValue.textContent = zoom.toFixed(1) + "×";
-  }
-
-  async function setupControls() {
-    track = getTrack();
-
-    if (!track) return;
-
-    try {
-      await track.applyConstraints({
-        advanced: [{ focusMode: "continuous" }]
-      });
-    } catch (error) {
-      // Optional.
-    }
-
-    var caps = null;
-
-    try {
-      caps = track.getCapabilities ? track.getCapabilities() : null;
-    } catch (error) {
-      caps = null;
-    }
-
-    torchButton.disabled = !(caps && caps.torch);
-
-    if (caps && caps.zoom && typeof caps.zoom.min === "number") {
-      zoomCaps = {
-        min: caps.zoom.min,
-        max: caps.zoom.max,
-        step: caps.zoom.step || 0.1
-      };
-
-      zoom = zoomCaps.min;
-    } else {
-      zoomCaps = null;
-      zoom = 1;
-    }
-
-    updateZoomButtons();
-
-    try {
-      var allDevices = await navigator.mediaDevices.enumerateDevices();
-
-      devices = allDevices.filter(function (device) {
-        return device.kind === "videoinput";
-      });
-
-      var settings = track.getSettings ? track.getSettings() : null;
-
-      if (settings && settings.deviceId) {
-        deviceId = settings.deviceId;
-      }
-
-      cameraButton.disabled = devices.length < 2;
-    } catch (error) {
-      devices = [];
-      cameraButton.disabled = true;
-    }
-  }
-
-  async function toggleTorch() {
-    if (!cameraOn) {
-      setStatus("Start the camera first.", "error");
-      return;
-    }
-
-    if (!track) track = getTrack();
-
-    if (!track) {
-      setStatus("Camera unavailable.", "error");
-      return;
-    }
-
-    var caps = null;
-
-    try {
-      caps = track.getCapabilities ? track.getCapabilities() : null;
-    } catch (error) {
-      caps = null;
-    }
-
-    if (!caps || !caps.torch) {
-      setStatus("Flash is not available on this camera.", "error");
-      return;
-    }
-
-    try {
-      torchOn = !torchOn;
-
-      await track.applyConstraints({
-        advanced: [{ torch: torchOn }]
-      });
-
-      torchButton.classList.toggle("torch-on", torchOn);
-      setStatus(torchOn ? "Flash on." : "Flash off.", "success");
-    } catch (error) {
-      torchOn = false;
-      torchButton.classList.remove("torch-on");
-      setStatus("Could not control flash.", "error");
+    if (result?.text) {
+      found = result;
+      break;
     }
   }
 
-  async function setZoom(value) {
-    if (!track || !zoomCaps) return;
+  busy = false;
+  hardButton.disabled = false;
 
-    var next = Math.min(zoomCaps.max, Math.max(zoomCaps.min, Number(value)));
-
-    try {
-      await track.applyConstraints({
-        advanced: [{ zoom: next }]
-      });
-
-      zoom = next;
-      updateZoomButtons();
-    } catch (error) {
-      setStatus("Zoom is not supported at this level.", "error");
-    }
+  if (found) {
+    guideEl.classList.toggle("qr", String(found.format).toLowerCase().includes("qr"));
+    showConfirm(found.text);
+    return;
   }
 
-  function zoomIn() {
-    if (zoomCaps) setZoom(zoom + (zoomCaps.step || 0.1));
-  }
+  badSound();
+  vibrate([120, 70, 120]);
+  badFlash();
+  setScanState("error");
+  setStatus("No barcode found. Try zoom, flash, another angle, or OCR.", "warning");
+}
 
-  function zoomOut() {
-    if (zoomCaps) setZoom(zoom - (zoomCaps.step || 0.1));
-  }
+function getTrack() {
+  return stream?.getVideoTracks()?.[0] || null;
+}
 
-  function toggleGuide() {
-    guideEl.classList.toggle("visible");
-    guideButton.classList.toggle("active", guideEl.classList.contains("visible"));
-  }
+async function setupControls() {
+  track = getTrack();
+  if (!track) return;
 
-  function startReminder() {
-    stopReminder();
+  try {
+    await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
+  } catch {}
 
-    reminder = window.setInterval(function () {
-      if (!cameraOn || torchOn) return;
+  let caps = null;
+  try { caps = track.getCapabilities?.() || null; } catch {}
 
-      if (Date.now() - lastGoodScan > 10000) {
-        setStatus("No reads yet. Try Zoom, Flash, or another angle.", "warning");
-      }
-    }, 10000);
-  }
+  torchButton.disabled = !(caps?.torch);
 
-  function stopReminder() {
-    if (reminder) {
-      window.clearInterval(reminder);
-      reminder = null;
-    }
-  }
-
-  async function startCamera(preferredId) {
-    if (cameraOn) {
-      stopCamera();
-      return;
-    }
-
-    if (typeof ZXing === "undefined") {
-      setStatus("Barcode library failed to load. Disable content blockers and reload.", "error");
-      return;
-    }
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setStatus("Camera is not supported in this browser.", "error");
-      return;
-    }
-
-    initAudio();
-    setStatus("Requesting camera permission…");
-    showError("Requesting camera permission…");
-
-    try {
-      reader = makeReader();
-    } catch (error) {
-      reader = null;
-      setStatus("Scanner failed to start: " + error.message, "error");
-      return;
-    }
-
-    var video;
-
-    if (preferredId) {
-      video = {
-        deviceId: { exact: preferredId },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 }
-      };
-    } else {
-      video = {
-        facingMode: "environment",
-        width: { ideal: 1920 },
-        height: { ideal: 1080 }
-      };
-    }
-
-    try {
-      var stream = await navigator.mediaDevices.getUserMedia({ video: video, audio: false });
-
-      cameraStream = stream;
-      videoEl.srcObject = stream;
-
-      await videoEl.play();
-
-      cameraOn = true;
-      deviceId = preferredId || deviceId;
-      lastGoodScan = Date.now();
-
-      hideOverlay();
-      setCameraButton(true);
-      setStatus("Camera running. Aim the barcode at the centre band.");
-
-      setupControls();
-      startReminder();
-      startScanLoop();
-    } catch (error) {
-      cameraOn = false;
-      setCameraButton(false);
-      showError("Camera unavailable");
-
-      var message = error && error.message ? error.message : String(error);
-      var lower = message.toLowerCase();
-
-      if (lower.indexOf("permission") !== -1 || lower.indexOf("denied") !== -1 || lower.indexOf("notallowed") !== -1) {
-        setStatus("Camera permission denied.", "error");
-      } else if (lower.indexOf("notfound") !== -1 || lower.indexOf("no camera") !== -1) {
-        setStatus("No camera available.", "error");
-      } else {
-        setStatus("Scanner failed: " + message, "error");
-      }
-
-      if (reader) {
-        try {
-          reader.reset();
-        } catch (cleanupError) {
-          // Ignore.
-        }
-
-        reader = null;
-      }
-
-      cameraStream = null;
-      track = null;
-    }
-  }
-
-  function stopCamera() {
-    if (!cameraOn) return;
-
-    stopScanLoop();
-    stopReminder();
-
-    if (torchOn && track) {
-      try {
-        track.applyConstraints({
-          advanced: [{ torch: false }]
-        });
-      } catch (error) {
-        // Ignore.
-      }
-
-      torchOn = false;
-    }
-
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(function (streamTrack) {
-        try {
-          streamTrack.stop();
-        } catch (error) {
-          // Ignore.
-        }
-      });
-    }
-
-    if (reader) {
-      try {
-        reader.reset();
-      } catch (readerCleanupError) {
-        // Ignore.
-      }
-    }
-
-    if (hardReader) {
-      try {
-        hardReader.reset();
-      } catch (hardCleanupError) {
-        // Ignore.
-      }
-
-      hardReader = null;
-    }
-
-    cameraOn = false;
-    cameraStream = null;
-    videoEl.srcObject = null;
-    reader = null;
-    track = null;
+  if (caps?.zoom && typeof caps.zoom.min === "number") {
+    zoomCaps = { min: caps.zoom.min, max: caps.zoom.max, step: caps.zoom.step || 0.1 };
+    zoom = zoomCaps.min;
+  } else {
     zoomCaps = null;
     zoom = 1;
-
-    hardBusy = false;
-    hardButton.disabled = false;
-    cameraCard.classList.remove("hard-active");
-
-    stopDualOcr();
-    dualMode = false;
-    dualButton.classList.remove("active");
-
-    viewRotation = 0;
-    applyViewRotation();
-
-    setCameraButton(false);
-    torchButton.disabled = true;
-    cameraButton.disabled = true;
-    updateZoomButtons();
-    showError("Camera preview will appear here");
-    setStatus("Camera stopped.");
   }
+
+  updateZoomButtons();
+
+  try {
+    const all = await navigator.mediaDevices.enumerateDevices();
+    devices = all.filter(device => device.kind === "videoinput");
+
+    const settings = track.getSettings?.();
+    if (settings?.deviceId) deviceId = settings.deviceId;
+
+    cameraButton.disabled = devices.length < 2;
+  } catch {
+    devices = [];
+    cameraButton.disabled = true;
+  }
+}
+
+function updateZoomButtons() {
+  if (!zoomCaps) {
+    zoomInButton.disabled = true;
+    zoomOutButton.disabled = true;
+    zoomValue.textContent = "";
+    return;
+  }
+
+  zoomOutButton.disabled = zoom <= zoomCaps.min + 0.001;
+  zoomInButton.disabled = zoom >= zoomCaps.max - 0.001;
+  zoomValue.textContent = zoom.toFixed(1) + "×";
+}
+
+async function setZoom(value) {
+  if (!track || !zoomCaps) return;
+
+  const next = Math.min(zoomCaps.max, Math.max(zoomCaps.min, Number(value)));
+
+  try {
+    await track.applyConstraints({ advanced: [{ zoom: next }] });
+    zoom = next;
+    updateZoomButtons();
+  } catch {
+    setStatus("Zoom is not supported at this level.", "error");
+  }
+}
+
+async function toggleTorch() {
+  if (!cameraOn) {
+    setStatus("Start the camera first.", "error");
+    return;
+  }
+
+  if (!track) track = getTrack();
+
+  const caps = track?.getCapabilities?.();
+  if (!caps?.torch) {
+    setStatus("Flash is not available on this camera.", "error");
+    return;
+  }
+
+  try {
+    torchOn = !torchOn;
+    await track.applyConstraints({ advanced: [{ torch: torchOn }] });
+    torchButton.classList.toggle("torch-on", torchOn);
+    setStatus(torchOn ? "Flash on." : "Flash off.", "success");
+  } catch {
+    torchOn = false;
+    torchButton.classList.remove("torch-on");
+    setStatus("Could not control flash.", "error");
+  }
+}
+
+function rotateView() {
+  if (!cameraOn) {
+    setStatus("Start the camera first.", "error");
+    return;
+  }
+
+  viewRotation = (viewRotation + 90) % 360;
+
+  cameraCard.classList.remove("rot-90", "rot-180", "rot-270");
+  if (viewRotation) cameraCard.classList.add("rot-" + viewRotation);
+
+  rotButton.classList.toggle("active", viewRotation !== 0);
+  setStatus("Camera view rotated " + viewRotation + "°.");
+}
+
+function startReminder() {
+  stopReminder();
+
+  reminder = setInterval(() => {
+    if (!cameraOn || torchOn) return;
+
+    if (Date.now() - lastGoodScan > 10000) {
+      setStatus("No reads yet. Move closer, use ＋ zoom, or try ⚡ flash.", "warning");
+    }
+  }, 10000);
+}
+
+function stopReminder() {
+  if (reminder) {
+    clearInterval(reminder);
+    reminder = null;
+  }
+}
+
+async function startCamera(preferredId) {
+  if (cameraOn) {
+    stopCamera();
+    return;
+  }
+
+  if (!navigator.mediaDevices?.getUserMedia) {
+    setStatus("Camera is not supported in this browser.", "error");
+    return;
+  }
+
+  setStatus("Requesting camera permission…");
+  overlayEl.textContent = "Requesting camera permission…";
+  overlayEl.classList.add("visible");
+
+  const video = preferredId
+    ? { deviceId: { exact: preferredId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+    : { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } };
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+    videoEl.srcObject = stream;
+    await videoEl.play();
+
+    cameraOn = true;
+    deviceId = preferredId || deviceId;
+    lastGoodScan = Date.now();
+
+    overlayEl.classList.remove("visible");
+    startButton.textContent = "Stop";
+    startButton.classList.add("success");
+    setStatus("Camera running. Aim the barcode at the green band.");
+
+    setupControls();
+    startReminder();
+    startScanLoop();
+  } catch (error) {
+    cameraOn = false;
+    startButton.textContent = "Start";
+    startButton.classList.remove("success");
+    overlayEl.textContent = "Camera unavailable";
+    overlayEl.classList.add("visible");
+
+    const message = String(error?.message || error).toLowerCase();
+
+    if (message.includes("permission") || message.includes("denied") || message.includes("notallowed")) {
+      setStatus("Camera permission denied.", "error");
+    } else if (message.includes("notfound") || message.includes("no camera")) {
+      setStatus("No camera available.", "error");
+    } else {
+      setStatus("Scanner failed: " + error.message, "error");
+    }
+
+    stream?.getTracks().forEach(t => t.stop());
+    stream = null;
+    track = null;
+  }
+}
+
+function stopCamera() {
+  if (!cameraOn) return;
+
+  stopScanLoop();
+  stopReminder();
+
+  if (torchOn && track) {
+    track.applyConstraints({ advanced: [{ torch: false }] }).catch(() => {});
+    torchOn = false;
+    torchButton.classList.remove("torch-on");
+  }
+
+  stream?.getTracks().forEach(t => t.stop());
+
+  stream = null;
+  track = null;
+  videoEl.srcObject = null;
+  cameraOn = false;
+  zoomCaps = null;
+  zoom = 1;
+
+  startButton.textContent = "Start";
+  startButton.classList.remove("success");
+  torchButton.disabled = true;
+  cameraButton.disabled = true;
+  updateZoomButtons();
+
+  overlayEl.textContent = "Camera preview will appear here";
+  overlayEl.classList.add("visible");
+  setStatus("Camera stopped.");
+}
 
 async function switchCamera() {
-    if (!cameraOn || devices.length < 2) return;
+  if (!cameraOn || devices.length < 2) return;
 
-    var current = devices.findIndex(function (device) {
-      return device.deviceId === deviceId;
+  const current = devices.findIndex(device => device.deviceId === deviceId);
+  const next = devices[(current + 1) % devices.length];
+
+  if (!next) return;
+
+  stopCamera();
+  startCamera(next.deviceId);
+}
+
+function freeze() {
+  const source = grabFrame();
+  if (!source) return;
+
+  freezeEl.width = source.width;
+  freezeEl.height = source.height;
+  freezeEl.getContext("2d").drawImage(source, 0, 0);
+
+  freezeEl.classList.add("visible");
+  setTimeout(() => freezeEl.classList.remove("visible"), 550);
+}
+
+function playSound(sound) {
+  if (!sound) return;
+
+  try {
+    sound.currentTime = 0;
+    sound.play();
+  } catch {}
+}
+
+function goodSound() {
+  if (!goodAudio) goodAudio = new Audio("ding.mp3");
+  playSound(goodAudio);
+}
+
+function badSound() {
+  if (!badAudio) badAudio = new Audio("error.mp3");
+  playSound(badAudio);
+}
+
+function vibrate(pattern) {
+  navigator.vibrate?.(pattern);
+}
+
+function goodFlash() {
+  flashEl.classList.remove("bad");
+  flashEl.classList.add("active");
+  setTimeout(() => flashEl.classList.remove("active"), 180);
+}
+
+function badFlash() {
+  flashEl.classList.add("bad", "active");
+  setTimeout(() => flashEl.classList.remove("active"), 350);
+}
+
+function assetCandidates(text) {
+  if (!text) return [];
+
+  const matches = text.match(/\b[A-Z]\d{5,8}\b/gi);
+  if (!matches) return [];
+
+  const valid = [];
+
+  matches.forEach(match => {
+    const clean = match.toUpperCase();
+
+    if (!/^[A-Z]\d{5}$/.test(clean) && !/^R\d{8}$/.test(clean)) return;
+
+    if (!valid.includes(clean)) valid.push(clean);
+
+    if (/^R00[01]\d{5}$/.test(clean)) {
+      const alternative = clean.slice(0, 3) + (clean.charAt(3) === "0" ? "1" : "0") + clean.slice(4);
+      if (!valid.includes(alternative)) valid.push(alternative);
+    }
+  });
+
+  return valid;
+}
+
+function showChoices(candidates) {
+  choicesEl.innerHTML = "";
+  choicesEl.classList.add("visible");
+
+  candidates.forEach(candidate => {
+    const button = document.createElement("button");
+    button.className = "ocr-choice";
+    button.type = "button";
+    button.textContent = candidate;
+
+    button.addEventListener("click", () => {
+      manualEl.value = candidate;
+      updateManualFormat();
+      manualEl.focus();
+      choicesEl.innerHTML = "";
+      choicesEl.classList.remove("visible");
+      setStatus("Selected " + candidate + ". Press Add.", "success");
     });
 
-    var next = devices[(current + 1) % devices.length];
+    choicesEl.appendChild(button);
+  });
+}
 
-    if (!next) return;
+async function runOcr(image) {
+  if (ocrBusy) return;
 
-    stopCamera();
-    startCamera(next.deviceId);
+  if (!image || typeof Tesseract === "undefined") {
+    setStatus("OCR is unavailable.", "error");
+    return;
   }
 
-  function downloadCsv(filename, content) {
-    var blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
-    var url = URL.createObjectURL(blob);
-    var link = document.createElement("a");
+  ocrBusy = true;
+  ocrButton.disabled = true;
+  ocrButton.textContent = "…";
+  setStatus("Reading Asset ID…");
 
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  try {
+    if (!ocrWorker) {
+      ocrWorker = await Tesseract.createWorker("eng", 1);
+      await ocrWorker.setParameters({ tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" });
+    }
 
-    window.setTimeout(function () {
-      URL.revokeObjectURL(url);
-    }, 1000);
-  }
+    const result = await ocrWorker.recognize(image);
+    const candidates = assetCandidates(result?.data?.text || "");
 
-  async function exportCsv() {
-    if (!scans.length) {
-      setStatus("No scans to export.", "error");
+    if (!candidates.length) {
+      setStatus("No Asset ID found. Try better light or a closer photo.", "error");
       return;
     }
 
-    var content = csvText();
-    var filename = exportName();
-
-    var canShare = !!(navigator.share && navigator.canShare && window.File && window.Blob);
-
-    if (canShare) {
-      try {
-        var file = new File([content], filename, { type: "text/csv" });
-        var data = {
-          title: "Barcode export",
-          text: scans.length + " scanned barcode" + (scans.length === 1 ? "" : "s") + ".",
-          files: [file]
-        };
-
-        if (navigator.canShare(data)) {
-          await navigator.share(data);
-
-          unsaved = false;
-          setStatus("Shared " + filename, "success");
-          return;
-        }
-      } catch (error) {
-        if (error && error.name === "AbortError") {
-          setStatus("Share cancelled.");
-          return;
-        }
-
-        setStatus("Share failed. Downloading instead.", "error");
-      }
-    }
-
-    downloadCsv(filename, content);
-
-    unsaved = false;
-    setStatus("Downloaded " + filename, "success");
-  }
-
-  function clearScans() {
-    if (!scans.length) return;
-
-    if (!window.confirm("Clear all " + scans.length + " scans?")) return;
-
-    scans = [];
-    editing = null;
-    lastAction = null;
-    lastScan.text = null;
-    lastScan.time = 0;
-    unsaved = false;
-
-    saveScans();
-    updateUi();
-    setStatus("All scans cleared.");
-  }
-
-  function formatManualEntry(rawValue) {
-    var value = String(rawValue || "").trim().toUpperCase();
-
-    if (/^[A-Z]\d{5}$/.test(value) || /^R\d{8}$/.test(value)) {
-      return value;
-    }
-
-    var digits = value.replace(/^R/, "").replace(/\D/g, "");
-
-    if (!digits) return "";
-
-    return "R" + digits.padStart(8, "0").slice(-8);
-  }
-
-  function updateManualFormat() {
-    var formatted = formatManualEntry(manualEl.value);
-
-    if (formatted && formatted !== manualEl.value) {
-      manualEl.value = formatted;
-
-      var caretPosition = manualEl.value.length;
-      manualEl.setSelectionRange(caretPosition, caretPosition);
-    }
-  }
-
-  function addManual() {
-    var value = formatManualEntry(manualEl.value);
-
-    if (!value) {
-      setStatus("Enter an Asset ID first.", "error");
-      return;
-    }
-
-    manualEl.value = value;
-
-    if (!/^[A-Z]\d{5}$/.test(value) && !/^R\d{8}$/.test(value)) {
-      setStatus("Asset ID must be A12345 or R12345678.", "error");
-      return;
-    }
-
-    if (addScan(value, "manual")) {
-      manualEl.value = "";
-      manualEl.blur();
-    }
-  }
-
-  function assetCandidates(text) {
-    if (!text) return [];
-
-    var matches = text.match(/\b[A-Z]\d{5,8}\b/gi);
-
-    if (!matches) return [];
-
-    var valid = [];
-
-    matches.forEach(function (match) {
-      var clean = match.toUpperCase();
-
-      if (!/^[A-Z]\d{5}$/.test(clean) && !/^R\d{8}$/.test(clean)) return;
-
-      if (valid.indexOf(clean) === -1) valid.push(clean);
-
-      if (/^R00[01]\d{5}$/.test(clean)) {
-        var alternative = clean.slice(0, 3) + (clean.charAt(3) === "0" ? "1" : "0") + clean.slice(4);
-
-        if (valid.indexOf(alternative) === -1) valid.push(alternative);
-      }
-    });
-
-    return valid;
-  }
-
-  function showChoices(candidates) {
-    choicesEl.innerHTML = "";
-    choicesEl.classList.add("visible");
-
-    candidates.forEach(function (candidate) {
-      var button = document.createElement("button");
-      button.className = "ocr-choice";
-      button.type = "button";
-      button.textContent = candidate;
-
-      button.addEventListener("click", function () {
-        manualEl.value = candidate;
+    if (candidates.length === 1) {
+      if (!addScan(candidates[0], "ocr")) {
+        manualEl.value = candidates[0];
         updateManualFormat();
         manualEl.focus();
-        hideChoices();
-        setStatus("Selected " + candidate + ". Press Add.", "success");
-      });
-
-      choicesEl.appendChild(button);
-    });
-  }
-
-  function hideChoices() {
-    choicesEl.innerHTML = "";
-    choicesEl.classList.remove("visible");
-  }
-
-  async function getWorker() {
-    if (ocrWorker) return ocrWorker;
-
-    if (typeof Tesseract === "undefined" || !Tesseract.createWorker) {
-      throw new Error("OCR library failed to load.");
+      }
+      return;
     }
 
-    setStatus("Loading OCR engine…");
-
-    ocrWorker = await Tesseract.createWorker("eng", 1);
-
-    await ocrWorker.setParameters({
-      tessedit_char_whitelist: "MR0123456789"
-    });
-
-    return ocrWorker;
-  }
-
-  function openCrop(file) {
-    var reader = new FileReader();
-
-    reader.onload = function () {
-      cropImage = new Image();
-
-      cropImage.onload = function () {
-        cropImg.src = cropImage.src;
-        cropModal.classList.add("visible");
-
-        cropStart = null;
-        cropRect = null;
-        cropBox.style.display = "none";
-
-        setStatus("Drag around the Asset ID, then press Crop & Read.");
-      };
-
-      cropImage.onerror = function () {
-        setStatus("Could not load image.", "error");
-      };
-
-      cropImage.src = reader.result;
-    };
-
-    reader.onerror = function () {
-      setStatus("Could not read image.", "error");
-    };
-
-    reader.readAsDataURL(file);
-  }
-
-  function closeCrop() {
-    cropModal.classList.remove("visible");
-    cropImage = null;
-    cropStart = null;
-    cropRect = null;
-    cropImg.src = "";
-    cropBox.style.display = "none";
+    showChoices(candidates);
+    setStatus("Found " + candidates.length + " possible IDs. Tap one.", "success");
+  } catch (error) {
+    setStatus("OCR failed: " + (error?.message || "Unknown error"), "error");
+  } finally {
+    ocrBusy = false;
+    ocrButton.disabled = true;
+    ocrButton.textContent = "OCR";
     fileInput.value = "";
   }
+}
 
-  function stagePoint(event) {
-    var imageRect = cropImg.getBoundingClientRect();
-    var x = event.clientX - imageRect.left;
-    var y = event.clientY - imageRect.top;
+function formatManualEntry(rawValue) {
+  let value = String(rawValue || "").trim().toUpperCase();
 
-    return {
-      x: Math.max(0, Math.min(imageRect.width, x)),
-      y: Math.max(0, Math.min(imageRect.height, y)),
-      offsetX: imageRect.left - cropStage.getBoundingClientRect().left,
-      offsetY: imageRect.top - cropStage.getBoundingClientRect().top
-    };
+  if (/^[A-Z]\d{5}$/.test(value) || /^R\d{8}$/.test(value)) {
+    return value;
   }
 
-  function drawCrop(point) {
-    if (!cropStart) return;
+  const digits = value.replace(/^R/, "").replace(/\D/g, "");
 
-    var left = Math.min(cropStart.x, point.x);
-    var top = Math.min(cropStart.y, point.y);
-    var width = Math.abs(point.x - cropStart.x);
-    var height = Math.abs(point.y - cropStart.y);
+  if (!digits) return "";
 
-    cropRect = {
-      left: left,
-      top: top,
-      width: width,
-      height: height
-    };
+  return "R" + digits.padStart(8, "0").slice(-8);
+}
 
-    cropBox.style.display = "block";
-    cropBox.style.left = (cropStart.offsetX + left) + "px";
-    cropBox.style.top = (cropStart.offsetY + top) + "px";
-    cropBox.style.width = width + "px";
-    cropBox.style.height = height + "px";
+function updateManualFormat() {
+  const formatted = formatManualEntry(manualEl.value);
+
+  if (formatted && formatted !== manualEl.value) {
+    manualEl.value = formatted;
+    const caret = manualEl.value.length;
+    manualEl.setSelectionRange(caret, caret);
+  }
+}
+
+function addManual() {
+  const value = formatManualEntry(manualEl.value);
+
+  if (!value) {
+    setStatus("Enter an Asset ID first.", "error");
+    return;
   }
 
-  function cropAndRead() {
-    if (!cropImage) {
-      setStatus("No image loaded.", "error");
-      return;
-    }
+  manualEl.value = value;
 
-    var imageRect = cropImg.getBoundingClientRect();
-    var scaleX = cropImage.naturalWidth / imageRect.width;
-    var scaleY = cropImage.naturalHeight / imageRect.height;
-
-    var sx = 0;
-    var sy = 0;
-    var sw = cropImage.naturalWidth;
-    var sh = cropImage.naturalHeight;
-
-    if (cropRect && cropRect.width > 8 && cropRect.height > 8) {
-      sx = cropRect.left * scaleX;
-      sy = cropRect.top * scaleY;
-      sw = cropRect.width * scaleX;
-      sh = cropRect.height * scaleY;
-    }
-
-    var canvas = document.createElement("canvas");
-    var scale = Math.min(3, Math.max(1, 1200 / Math.max(sw, sh)));
-
-    canvas.width = Math.round(sw * scale);
-    canvas.height = Math.round(sh * scale);
-
-    var context = canvas.getContext("2d");
-
-    if (!context) {
-      setStatus("Could not prepare crop.", "error");
-      return;
-    }
-
-    context.drawImage(cropImage, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-
-    closeCrop();
-    runOcr(canvas);
+  if (!/^[A-Z]\d{5}$/.test(value) && !/^R\d{8}$/.test(value)) {
+    setStatus("Asset ID must be A12345 or R12345678.", "error");
+    return;
   }
 
-  async function runOcr(image, isDual) {
-    if (ocrBusy) return;
+  if (addScan(value, "manual")) {
+    manualEl.value = "";
+    manualEl.blur();
+  }
+}
 
-    if (!image) {
-      setStatus("No image for OCR.", "error");
-      return;
-    }
+function exportTimestamp(date) {
+  const pad = value => String(value).padStart(2, "0");
+  return date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate()) +
+    "-" + pad(date.getHours()) + pad(date.getMinutes()) + pad(date.getSeconds());
+}
 
-    if (typeof Tesseract === "undefined" || !Tesseract.createWorker) {
-      setStatus("OCR library failed to load.", "error");
-      return;
-    }
+function csvText() {
+  return scans.map(scan => scan.barcode).join("\n") + (scans.length ? "\n" : "");
+}
 
-    ocrBusy = true;
-    ocrButton.disabled = true;
-    ocrButton.textContent = "…";
+function downloadCsv(filename, content) {
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
 
-    if (!isDual) {
-      setStatus("Reading cropped Asset ID…");
-    }
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function exportCsv() {
+  if (!scans.length) {
+    setStatus("No scans to export.", "error");
+    return;
+  }
+
+  const venue = venueEl.value.trim();
+  const transfer = transferEl.value.trim();
+  let name = "barcodes";
+
+  if (venue) name += "-" + venue.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, "-");
+  if (transfer) name += "-" + transfer.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, "-");
+
+  const filename = name + "-" + exportTimestamp(new Date()) + ".csv";
+  const content = csvText();
+
+  if (navigator.share && navigator.canShare && window.File && window.Blob) {
     try {
-      var worker = await getWorker();
-      var result = await worker.recognize(image);
-      var text = result && result.data && result.data.text ? result.data.text : "";
-      var candidates = assetCandidates(text);
+      const file = new File([content], filename, { type: "text/csv" });
+      const data = { title: "Barcode export", text: scans.length + " scanned barcode(s).", files: [file] };
 
-      if (!candidates.length) {
-        if (!isDual) {
-          setStatus("No Asset ID found. Try a tighter crop or more light.", "error");
-        }
-
+      if (navigator.canShare(data)) {
+        await navigator.share(data);
+        setStatus("Shared " + filename, "success");
         return;
       }
-
-      if (candidates.length === 1) {
-        if (!addScan(candidates[0], "ocr")) {
-          manualEl.value = candidates[0];
-          manualEl.focus();
-
-          if (isDual) {
-            setStatus("OCR found " + candidates[0] + ", but it was not added.", "warning");
-          }
-        } else if (isDual) {
-          setStatus("Dual OCR added: " + candidates[0], "success");
-        }
-
-        return;
-      }
-
-      showChoices(candidates);
-      setStatus("Found " + candidates.length + " possible IDs. Tap one.", "success");
     } catch (error) {
-      setStatus("OCR failed: " + (error && error.message ? error.message : "Unknown error"), "error");
-    } finally {
-      ocrBusy = false;
-      ocrButton.disabled = false;
-      ocrButton.textContent = "OCR";
-      fileInput.value = "";
+      if (error?.name === "AbortError") return;
+      setStatus("Share failed. Downloading instead.", "error");
     }
   }
 
-  function stopGesture(event) {
-    event.preventDefault();
-  }
+  downloadCsv(filename, content);
+  setStatus("Downloaded " + filename, "success");
+}
 
-  cameraCard.addEventListener("gesturestart", stopGesture);
-  cameraCard.addEventListener("gesturechange", stopGesture);
-  cameraCard.addEventListener("gestureend", stopGesture);
+function clearScans() {
+  if (!scans.length) return;
+  if (!confirm("Clear all " + scans.length + " scans?")) return;
 
-  cropStage.addEventListener("pointerdown", function (event) {
-    if (!cropImage) return;
+  scans = [];
+  lastAction = null;
+  lastScan = { text: null, time: 0 };
 
-    event.preventDefault();
-    cropStart = stagePoint(event);
-    cropRect = null;
-    drawCrop(cropStart);
-  });
-
-  cropStage.addEventListener("pointermove", function (event) {
-    if (!cropStart) return;
-
-    event.preventDefault();
-    drawCrop(stagePoint(event));
-  });
-
-  cropStage.addEventListener("pointerup", function (event) {
-    if (!cropStart) return;
-
-    event.preventDefault();
-    drawCrop(stagePoint(event));
-    cropStart = null;
-  });
-
-  cropStage.addEventListener("pointercancel", function () {
-    cropStart = null;
-  });
-
-  startButton.addEventListener("click", function () {
-    startCamera();
-  });
-
-  exportButton.addEventListener("click", function () {
-    exportCsv();
-  });
-
-  clearButton.addEventListener("click", clearScans);
-  undoButton.addEventListener("click", undo);
-  $("cacheButton").addEventListener("click", refreshPageCache);
-
-  addButton.addEventListener("click", addManual);
-  torchButton.addEventListener("click", toggleTorch);
-  cameraButton.addEventListener("click", switchCamera);
-  guideButton.addEventListener("click", toggleGuide);
-  hardButton.addEventListener("click", forceScan);
-  rotButton.addEventListener("click", rotateView);
-  dualButton.addEventListener("click", toggleDual);
-  cropRotate.addEventListener("click", rotateCrop);
-  confirmYes.addEventListener("click", function () { closeConfirm(true); });
-  confirmNo.addEventListener("click", function () { closeConfirm(false); });
-  videoEl.addEventListener("click", forceScan);
-  zoomInButton.addEventListener("click", zoomIn);
-  zoomOutButton.addEventListener("click", zoomOut);
-
-  ocrButton.addEventListener("click", function () {
-    if (!ocrBusy) fileInput.click();
-  });
-
-  fileInput.addEventListener("change", function () {
-    var file = fileInput.files && fileInput.files[0];
-
-    if (file) openCrop(file);
-  });
-
-  cropCancel.addEventListener("click", function () {
-    closeCrop();
-    setStatus("OCR cancelled.");
-  });
-
-  cropRead.addEventListener("click", cropAndRead);
-
-  searchEl.addEventListener("input", updateUi);
-
-  venueEl.addEventListener("input", function () {
-    meta.venue = venueEl.value;
-    saveMetadata();
-  });
-
-  transferEl.addEventListener("input", function () {
-    meta.transfer = transferEl.value;
-    saveMetadata();
-  });
-
-  manualEl.addEventListener("input", updateManualFormat);
-
-  manualEl.addEventListener("keydown", function (event) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      addManual();
-    }
-  });
-
-  function refreshPageCache() {
-    var url = new URL(window.location.href);
-
-    url.searchParams.set("cache", Date.now());
-    window.location.replace(url.toString());
-  }
-
-  window.addEventListener("pagehide", stopCamera);
-
-  window.addEventListener("beforeunload", function (event) {
-    stopCamera();
-
-    if (unsaved && scans.length) {
-      event.preventDefault();
-      event.returnValue = "";
-      return "";
-    }
-  });
-
-  venueEl.value = meta.venue;
-  transferEl.value = meta.transfer;
+  saveScans();
   updateUi();
+  setStatus("All scans cleared.");
+}
 
-  if (typeof ZXing === "undefined") {
-    setStatus("Barcode library failed to load. Disable content blockers and reload.", "error");
-    showError("Library failed to load");
-  } else {
-    setStatus("Ready. Press Start to use the camera.");
+function refreshPageCache() {
+  const url = new URL(window.location.href);
+  url.searchParams.set("cache", Date.now());
+  window.location.replace(url.toString());
+}
+
+venueEl.value = meta.venue;
+transferEl.value = meta.transfer;
+
+venueEl.addEventListener("input", () => {
+  meta.venue = venueEl.value;
+  saveMetadata();
+});
+
+transferEl.addEventListener("input", () => {
+  meta.transfer = transferEl.value;
+  saveMetadata();
+});
+
+$("cacheButton").addEventListener("click", refreshPageCache);
+
+startButton.addEventListener("click", () => startCamera());
+cameraButton.addEventListener("click", switchCamera);
+torchButton.addEventListener("click", toggleTorch);
+guideButton.addEventListener("click", () => guideEl.classList.toggle("visible"));
+hardButton.addEventListener("click", forceScan);
+rotButton.addEventListener("click", rotateView);
+zoomInButton.addEventListener("click", () => setZoom(zoom + (zoomCaps?.step || 0.1)));
+zoomOutButton.addEventListener("click", () => setZoom(zoom - (zoomCaps?.step || 0.1)));
+videoEl.addEventListener("click", forceScan);
+
+addButton.addEventListener("click", addManual);
+manualEl.addEventListener("input", updateManualFormat);
+manualEl.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    addManual();
   }
-})();
-</script>
+});
 
+ocrButton.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", () => {
+  const file = fileInput.files?.[0];
+  if (!file) return;
+
+  const image = new Image();
+  image.onload = () => runOcr(image);
+  image.src = URL.createObjectURL(file);
+});
+
+confirmYes.addEventListener("click", () => closeConfirm(true));
+confirmNo.addEventListener("click", () => closeConfirm(false));
+
+undoButton.addEventListener("click", undo);
+exportButton.addEventListener("click", exportCsv);
+clearButton.addEventListener("click", clearScans);
+searchEl.addEventListener("input", updateUi);
+
+updateUi();
+idbHydrate();
+setStatus("Ready. Press Start to scan.");
+</script>
 </body>
 </html>
