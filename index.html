@@ -41,6 +41,15 @@ body{padding-bottom:env(safe-area-inset-bottom)}
 .camera-card.rot-180 #camera,.camera-card.rot-180 #freezeFrame,.camera-card.rot-180 #scanGuide{transform:rotate(180deg)}
 .camera-card.rot-270 #camera,.camera-card.rot-270 #freezeFrame,.camera-card.rot-270 #scanGuide{transform:rotate(270deg)}
 .camera-card.hard-active{outline:2px solid #f59e0b;outline-offset:-2px}
+.camera-card::after{content:"";position:absolute;inset:0;border:3px solid transparent;border-radius:inherit;pointer-events:none;z-index:9}
+.camera-card.scanning::after{border-color:rgba(34,197,94,.55);animation:scanPulse 1.7s ease-in-out infinite}
+.camera-card.found::after{border-color:#f59e0b}
+.camera-card.success::after{border-color:#22c55e}
+.camera-card.error::after{border-color:#ef4444}
+@keyframes scanPulse{0%,100%{opacity:.45}50%{opacity:1}}
+.scan-guide.qr::before{content:"";position:absolute;left:24%;right:24%;top:22%;bottom:22%;border:3px solid rgba(34,197,94,.85);border-radius:14px;background:transparent}
+.scan-guide.qr::after{display:none}
+.confirm-code{font-size:30px;font-weight:800;text-align:center;letter-spacing:.04em;margin:10px 0 16px;word-break:break-all}
 .undo{background:#475569}
 .status{margin-top:7px;min-height:18px;font-size:12px;color:var(--muted);text-align:center}
 .status.error{color:#fca5a5;font-weight:600}
@@ -67,7 +76,9 @@ main{padding:10px;max-width:720px;margin:0 auto}
 .scan-guide.visible{display:block}
 .scan-guide::before{content:"";position:absolute;left:8%;right:8%;top:50%;height:2px;background:rgba(34,197,94,.75)}
 .scan-guide::after{content:"";position:absolute;top:18%;bottom:18%;left:50%;width:2px;background:rgba(34,197,94,.35)}
-.side-controls{position:absolute;top:10px;right:10px;z-index:10;display:flex;flex-direction:column;gap:6px}
+.side-controls{position:absolute;top:10px;z-index:10;display:flex;flex-direction:column;gap:6px}
+.side-controls.left{left:10px}
+.side-controls.right{right:10px}
 .camera-control{appearance:none;border:1px solid rgba(255,255,255,.18);background:rgba(15,23,42,.78);color:#fff;border-radius:12px;min-width:46px;min-height:38px;padding:5px 7px;font-size:11px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .camera-control:disabled{opacity:.4;cursor:not-allowed}
 .camera-control.torch-on{background:rgba(245,158,11,.9);color:#1f1300;border-color:rgba(245,158,11,.9)}
@@ -103,7 +114,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
 
 <header class="toolbar">
   <div class="toolbar-top">
-    <span class="version">v0.16</span>
+    <span class="version">v0.13</span>
     <span class="app-title">Barcode Scanner</span>
     <span></span>
   </div>
@@ -149,12 +160,15 @@ main{padding:10px;max-width:720px;margin:0 auto}
     <div class="scan-flash" id="scanFlash"></div>
     <div class="scan-guide visible" id="scanGuide"></div>
 
-    <div class="side-controls">
+    <div class="side-controls left">
       <button class="camera-control" id="cameraButton" type="button" disabled>CAM</button>
       <button class="camera-control" id="torchButton" type="button" disabled>⚡</button>
-      <button class="camera-control active" id="guideButton" type="button">⊞</button>
-      <button class="camera-control hard" id="hardButton" type="button">TRY</button>
       <button class="camera-control rot" id="rotButton" type="button">⟳</button>
+      <button class="camera-control active" id="guideButton" type="button">⊞</button>
+    </div>
+
+    <div class="side-controls right">
+      <button class="camera-control hard" id="hardButton" type="button">TRY</button>
       <button class="camera-control dual" id="dualButton" type="button">DUAL</button>
       <button class="camera-control" id="zoomInButton" type="button" disabled>＋</button>
       <div class="zoom-value" id="zoomValue"></div>
@@ -163,7 +177,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
   </section>
 
   <div class="hint">
-    Use ＋ to zoom, ⚡ for flash, CAM to change lens, ⊞ for the guide, TRY for a harder scan, ⟳ to rotate the view, and DUAL to read OCR while scanning. Tap the preview to hard-scan that spot.
+    Left: camera, flash, rotate, guide. Right: TRY hard scan, DUAL OCR, and zoom. Tap the preview to hard-scan that spot.
   </div>
 
   <section>
@@ -196,13 +210,24 @@ main{padding:10px;max-width:720px;margin:0 auto}
   </div>
 </div>
 
+<div class="modal" id="confirmModal">
+  <h2 class="modal-title">Add this scan?</h2>
+
+  <div class="confirm-code" id="confirmCode"></div>
+
+  <div class="modal-actions">
+    <button class="button secondary" id="confirmNoButton" type="button">No</button>
+    <button class="button success" id="confirmYesButton" type="button">Yes</button>
+  </div>
+</div>
+
 <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js"></script>
 <script>
 (function () {
   "use strict";
 
-  var APP_VERSION = "v0.16";
+  var APP_VERSION = "v0.18";
   var STORAGE_KEY = "barcode-scanner-scans-v1";
   var METADATA_KEY = "barcode-scanner-metadata-v1";
   var DUP_MS = 1500;
@@ -236,6 +261,10 @@ main{padding:10px;max-width:720px;margin:0 auto}
   var dualTimer = null;
   var cropRotation = 0;
   var openCvPromise = null;
+  var cameraStream = null;
+  var scanTimer = null;
+  var confirmBusy = false;
+  var pendingScan = null;
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -259,6 +288,10 @@ main{padding:10px;max-width:720px;margin:0 auto}
   var hardButton = $("hardButton");
   var rotButton = $("rotButton");
   var dualButton = $("dualButton");
+  var confirmModal = $("confirmModal");
+  var confirmCode = $("confirmCode");
+  var confirmYes = $("confirmYesButton");
+  var confirmNo = $("confirmNoButton");
   var zoomInButton = $("zoomInButton");
   var zoomOutButton = $("zoomOutButton");
   var zoomValue = $("zoomValue");
@@ -647,14 +680,14 @@ main{padding:10px;max-width:720px;margin:0 auto}
     }
   }
 
-  function tone(freq, at, duration, volume) {
+  function tone(freq, at, duration, volume, type) {
     if (!audio) return;
 
     try {
       var osc = audio.createOscillator();
       var gain = audio.createGain();
 
-      osc.type = "sine";
+      osc.type = type || "sine";
       osc.frequency.setValueAtTime(freq, at);
 
       gain.gain.setValueAtTime(0.0001, at);
@@ -676,8 +709,8 @@ main{padding:10px;max-width:720px;margin:0 auto}
 
     var now = audio.currentTime;
 
-    tone(1200, now, 0.09, 0.25);
-    tone(1800, now + 0.07, 0.13, 0.25);
+    tone(988, now, 0.10, 0.22);
+    tone(1319, now + 0.09, 0.17, 0.22);
   }
 
   function badSound() {
@@ -685,8 +718,8 @@ main{padding:10px;max-width:720px;margin:0 auto}
 
     var now = audio.currentTime;
 
-    tone(240, now, 0.12, 0.28);
-    tone(180, now + 0.13, 0.18, 0.28);
+    tone(415, now, 0.15, 0.25, "triangle");
+    tone(311, now + 0.16, 0.24, 0.25, "triangle");
   }
 
   function vibrate(pattern) {
@@ -757,6 +790,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
       badSound();
       vibrate([120, 70, 120]);
       badFlash();
+      setScanState("error");
       setStatus("Already scanned: " + clean, "warning");
 
       return false;
@@ -783,19 +817,12 @@ main{padding:10px;max-width:720px;margin:0 auto}
     goodSound();
     vibrate(80);
     goodFlash();
+    setScanState("success");
     freeze();
 
     setStatus((source === "ocr" ? "OCR added: " : "Added: ") + clean, "success");
 
     return true;
-  }
-
-  function onResult(result) {
-    if (!result || typeof result.getText !== "function") return;
-
-    var text = result.getText();
-
-    if (text) addScan(text, "camera");
   }
 
   function showError(message) {
@@ -849,6 +876,22 @@ main{padding:10px;max-width:720px;margin:0 auto}
     context.rotate(viewRotation * Math.PI / 180);
     context.drawImage(videoEl, -width / 2, -height / 2, width, height);
     context.restore();
+
+    return canvas;
+  }
+
+  function grabScanRegionCanvas(source) {
+    var x = Math.round(source.width * 0.08);
+    var y = Math.round(source.height * 0.30);
+    var width = Math.round(source.width * 0.84);
+    var height = Math.round(source.height * 0.40);
+
+    var canvas = document.createElement("canvas");
+
+    canvas.width = width;
+    canvas.height = height;
+
+    canvas.getContext("2d", { willReadFrequently: true }).drawImage(source, x, y, width, height, 0, 0, width, height);
 
     return canvas;
   }
@@ -908,11 +951,13 @@ main{padding:10px;max-width:720px;margin:0 auto}
     return options.enhance ? enhanceCanvas(canvas) : canvas;
   }
 
-  function decodeHardCanvas(canvas) {
-    if (!hardReader || typeof hardReader.decodeFromCanvas !== "function") return null;
+  function decodeCanvas(canvas, useHardReader) {
+    var decoder = useHardReader ? hardReader : reader;
+
+    if (!decoder || typeof decoder.decodeFromCanvas !== "function") return null;
 
     try {
-      return hardReader.decodeFromCanvas(canvas);
+      return decoder.decodeFromCanvas(canvas);
     } catch (error) {
       return null;
     }
@@ -1082,13 +1127,109 @@ main{padding:10px;max-width:720px;margin:0 auto}
     return results;
   }
 
+  function setScanState(state) {
+    cameraCard.classList.remove("found", "success", "error");
+
+    if (state) {
+      cameraCard.classList.add(state);
+    }
+  }
+
+  function showConfirm(text) {
+    pendingScan = String(text || "").trim();
+    confirmCode.textContent = pendingScan;
+    confirmModal.classList.add("visible");
+    confirmBusy = true;
+    setScanState("found");
+
+    window.setTimeout(function () {
+      confirmYes.focus();
+    }, 50);
+  }
+
+  function closeConfirm(accepted) {
+    confirmModal.classList.remove("visible");
+    confirmBusy = false;
+
+    var text = pendingScan;
+    pendingScan = null;
+
+    if (!text) return;
+
+    var clean = text.trim().toUpperCase();
+
+    if (accepted) {
+      var added = addScan(clean, "camera");
+
+      if (!added) {
+        setScanState("error");
+      }
+
+      return;
+    }
+
+    lastScan = { text: clean, time: Date.now() };
+    setScanState(null);
+    setStatus("Scan cancelled: " + clean, "warning");
+  }
+
+  function scanFrame() {
+    if (!cameraOn || hardBusy || confirmBusy || !reader) return;
+
+    var source = grabVideoCanvas();
+
+    if (!source) return;
+
+    var region = grabScanRegionCanvas(source);
+    var result = decodeCanvas(region, false);
+
+    if (result && typeof result.getText === "function") {
+      var text = result.getText();
+
+      if (!text) return;
+
+      var format = null;
+
+      try {
+        format = result.getBarcodeFormat();
+      } catch (error) {
+        format = null;
+      }
+
+      guideEl.classList.remove("qr");
+
+      if (format === ZXing.BarcodeFormat.QR_CODE) {
+        guideEl.classList.add("qr");
+      }
+
+      showConfirm(text);
+    }
+  }
+
+  function startScanLoop() {
+    stopScanLoop();
+
+    cameraCard.classList.add("scanning");
+
+    scanTimer = window.setInterval(scanFrame, 120);
+  }
+
+  function stopScanLoop() {
+    if (scanTimer) {
+      window.clearInterval(scanTimer);
+      scanTimer = null;
+    }
+
+    cameraCard.classList.remove("scanning", "found", "success", "error");
+  }
+
   async function forceScan(event) {
     if (!cameraOn) {
       setStatus("Start the camera first.", "error");
       return;
     }
 
-    if (hardBusy) return;
+    if (hardBusy || confirmBusy) return;
 
     if (typeof ZXing === "undefined") {
       setStatus("Barcode library failed to load. Disable content blockers and reload.", "error");
@@ -1148,7 +1289,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
 
     for (var i = 0; i < variants.length && !found; i++) {
       var canvas = makeVariantCanvas(source, variants[i]);
-      var result = decodeHardCanvas(canvas);
+      var result = decodeCanvas(canvas, true);
 
       if (result && typeof result.getText === "function") {
         var text = result.getText();
@@ -1169,21 +1310,21 @@ main{padding:10px;max-width:720px;margin:0 auto}
         var warped = perspectiveCanvases(source);
 
         for (var w = 0; w < warped.length && !found; w++) {
-          var direct = decodeHardCanvas(warped[w]);
+          var direct = decodeCanvas(warped[w], true);
 
           if (direct && typeof direct.getText === "function" && direct.getText()) {
             found = direct.getText();
             break;
           }
 
-          var enhanced = decodeHardCanvas(enhanceCanvas(warped[w]));
+          var enhanced = decodeCanvas(enhanceCanvas(warped[w]), true);
 
           if (enhanced && typeof enhanced.getText === "function" && enhanced.getText()) {
             found = enhanced.getText();
           }
         }
       } catch (error) {
-        // Perspective assist is optional; continue to the failure path.
+        // Perspective assist is optional.
       }
     }
 
@@ -1192,18 +1333,14 @@ main{padding:10px;max-width:720px;margin:0 auto}
     cameraCard.classList.remove("hard-active");
 
     if (found) {
-      var added = addScan(found, "camera");
-
-      if (!added) {
-        setStatus("Force scan read " + found + ", but it was not added.", "warning");
-      }
-
+      showConfirm(found);
       return;
     }
 
     badSound();
     vibrate([120, 70, 120]);
     badFlash();
+    setScanState("error");
     setStatus("No barcode found. Try zoom, flash, another angle, or OCR.", "warning");
   }
 
@@ -1272,7 +1409,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
     stopDualOcr();
 
     dualTimer = window.setInterval(function () {
-      if (!cameraOn || !dualMode || ocrBusy || hardBusy) return;
+      if (!cameraOn || !dualMode || ocrBusy || hardBusy || confirmBusy) return;
 
       var source = grabVideoCanvas();
 
@@ -1606,25 +1743,6 @@ main{padding:10px;max-width:720px;margin:0 auto}
     controls = null;
     track = null;
     reader = null;
-
-    if (hardReader) {
-      try {
-        hardReader.reset();
-      } catch (hardCleanupError) {
-        // Ignore.
-      }
-
-      hardReader = null;
-    }
-
-    hardBusy = false;
-    hardButton.disabled = false;
-    cameraCard.classList.remove("hard-active");
-    stopDualOcr();
-    dualMode = false;
-    dualButton.classList.remove("active");
-    viewRotation = 0;
-    applyViewRotation();
     zoomCaps = null;
     zoom = 1;
 
@@ -2049,6 +2167,8 @@ main{padding:10px;max-width:720px;margin:0 auto}
   rotButton.addEventListener("click", rotateView);
   dualButton.addEventListener("click", toggleDual);
   cropRotate.addEventListener("click", rotateCrop);
+  confirmYes.addEventListener("click", function () { closeConfirm(true); });
+  confirmNo.addEventListener("click", function () { closeConfirm(false); });
   videoEl.addEventListener("click", forceScan);
   zoomInButton.addEventListener("click", zoomIn);
   zoomOutButton.addEventListener("click", zoomOut);
