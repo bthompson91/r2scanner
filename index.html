@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0b1220">
-<title>Barcode Scanner</title>
+<title>Barcode Scanner v0.21</title>
 <style>
 :root{color-scheme:dark;--bg:#0b1220;--panel:#121a2b;--panel2:#182238;--text:#eaf0ff;--muted:#9aa8c7;--accent:#2f81f7;--success:#22c55e;--danger:#ef4444;--warning:#f59e0b;--border:#26314a}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
@@ -114,7 +114,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
 
 <header class="toolbar">
   <div class="toolbar-top">
-    <span class="version">v0.19</span>
+    <span class="version">v0.21</span>
     <span class="app-title">Barcode Scanner</span>
     <span></span>
   </div>
@@ -227,7 +227,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
 (function () {
   "use strict";
 
-  var APP_VERSION = "v0.19";
+  var APP_VERSION = "v0.21";
   var STORAGE_KEY = "barcode-scanner-scans-v1";
   var METADATA_KEY = "barcode-scanner-metadata-v1";
   var DUP_MS = 1500;
@@ -266,6 +266,8 @@ main{padding:10px;max-width:720px;margin:0 auto}
   var confirmBusy = false;
   var pendingScan = null;
   var scanDb = null;
+  var goodAudio = null;
+  var badAudio = null;
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -685,46 +687,31 @@ main{padding:10px;max-width:720px;margin:0 auto}
     }
   }
 
-  function tone(freq, at, duration, volume, type) {
-    if (!audio) return;
+  function playSound(sound) {
+    if (!sound) return;
 
     try {
-      var osc = audio.createOscillator();
-      var gain = audio.createGain();
-
-      osc.type = type || "sine";
-      osc.frequency.setValueAtTime(freq, at);
-
-      gain.gain.setValueAtTime(0.0001, at);
-      gain.gain.exponentialRampToValueAtTime(volume, at + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
-
-      osc.connect(gain);
-      gain.connect(audio.destination);
-
-      osc.start(at);
-      osc.stop(at + duration);
+      sound.currentTime = 0;
+      sound.play();
     } catch (error) {
-      // Optional.
+      // Browser may require a user interaction first.
     }
   }
 
   function goodSound() {
-    if (!audio) return;
+    if (!goodAudio) {
+      goodAudio = new Audio("ding.mp3");
+    }
 
-    var now = audio.currentTime;
-
-    tone(988, now, 0.10, 0.22);
-    tone(1319, now + 0.09, 0.17, 0.22);
+    playSound(goodAudio);
   }
 
   function badSound() {
-    if (!audio) return;
+    if (!badAudio) {
+      badAudio = new Audio("error.mp3");
+    }
 
-    var now = audio.currentTime;
-
-    tone(415, now, 0.15, 0.25, "triangle");
-    tone(311, now + 0.16, 0.24, 0.25, "triangle");
+    playSound(badAudio);
   }
 
   function vibrate(pattern) {
