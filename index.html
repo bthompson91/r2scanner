@@ -32,9 +32,15 @@ body{padding-bottom:env(safe-area-inset-bottom)}
 .danger{background:#7f1d1d}
 .success{background:var(--success)}
 .ocr{background:#7c3aed}
-.hard{background:#b45309;font-size:11px;letter-spacing:.04em}
-.hard:disabled{opacity:.45}
-.camera-frame.hard-active{outline:2px solid #f59e0b;outline-offset:-2px}
+.hard{background:#b45309;font-size:10px;letter-spacing:.04em}
+.rot{background:#334155}
+.dual{background:#0e7490;font-size:10px;letter-spacing:.04em}
+.dual.active{background:#0891b2}
+.camera-control:disabled{opacity:.45}
+.camera-card.rot-90 #camera,.camera-card.rot-90 #freezeFrame,.camera-card.rot-90 #scanGuide{transform:rotate(90deg)}
+.camera-card.rot-180 #camera,.camera-card.rot-180 #freezeFrame,.camera-card.rot-180 #scanGuide{transform:rotate(180deg)}
+.camera-card.rot-270 #camera,.camera-card.rot-270 #freezeFrame,.camera-card.rot-270 #scanGuide{transform:rotate(270deg)}
+.camera-card.hard-active{outline:2px solid #f59e0b;outline-offset:-2px}
 .undo{background:#475569}
 .status{margin-top:7px;min-height:18px;font-size:12px;color:var(--muted);text-align:center}
 .status.error{color:#fca5a5;font-weight:600}
@@ -148,6 +154,8 @@ main{padding:10px;max-width:720px;margin:0 auto}
       <button class="camera-control" id="torchButton" type="button" disabled>⚡</button>
       <button class="camera-control active" id="guideButton" type="button">⊞</button>
       <button class="camera-control hard" id="hardButton" type="button">TRY</button>
+      <button class="camera-control rot" id="rotButton" type="button">⟳</button>
+      <button class="camera-control dual" id="dualButton" type="button">DUAL</button>
       <button class="camera-control" id="zoomInButton" type="button" disabled>＋</button>
       <div class="zoom-value" id="zoomValue"></div>
       <button class="camera-control" id="zoomOutButton" type="button" disabled>－</button>
@@ -155,7 +163,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
   </section>
 
   <div class="hint">
-    Use ＋ to zoom toward distant barcodes, ⚡ for flash, CAM to change lens, and ⊞ to toggle the guide. Tap the preview or press TRY for a harder scan. OCR lets you crop around the Asset ID before reading it.
+    Use ＋ to zoom, ⚡ for flash, CAM to change lens, ⊞ for the guide, TRY for a harder scan, ⟳ to rotate the view, and DUAL to read OCR while scanning. Tap the preview to hard-scan that spot.
   </div>
 
   <section>
@@ -183,6 +191,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
 
   <div class="modal-actions">
     <button class="button secondary" id="cropCancelButton" type="button">Cancel</button>
+    <button class="button undo" id="cropRotateButton" type="button">Rotate</button>
     <button class="button success" id="cropReadButton" type="button">Crop &amp; Read</button>
   </div>
 </div>
@@ -193,7 +202,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
 (function () {
   "use strict";
 
-  var APP_VERSION = "v0.14";
+  var APP_VERSION = "v0.16";
   var STORAGE_KEY = "barcode-scanner-scans-v1";
   var METADATA_KEY = "barcode-scanner-metadata-v1";
   var DUP_MS = 1500;
@@ -222,6 +231,11 @@ main{padding:10px;max-width:720px;margin:0 auto}
   var cropRect = null;
   var hardReader = null;
   var hardBusy = false;
+  var viewRotation = 0;
+  var dualMode = false;
+  var dualTimer = null;
+  var cropRotation = 0;
+  var openCvPromise = null;
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -243,6 +257,8 @@ main{padding:10px;max-width:720px;margin:0 auto}
   var torchButton = $("torchButton");
   var guideButton = $("guideButton");
   var hardButton = $("hardButton");
+  var rotButton = $("rotButton");
+  var dualButton = $("dualButton");
   var zoomInButton = $("zoomInButton");
   var zoomOutButton = $("zoomOutButton");
   var zoomValue = $("zoomValue");
@@ -260,6 +276,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
   var cropBox = $("cropSelection");
   var cropCancel = $("cropCancelButton");
   var cropRead = $("cropReadButton");
+  var cropRotate = $("cropRotateButton");
 
   var scans = loadScans();
   var meta = loadMetadata();
@@ -701,16 +718,18 @@ main{padding:10px;max-width:720px;margin:0 auto}
   }
 
   function freeze() {
-    if (!videoEl.videoWidth || !videoEl.videoHeight) return;
+    var source = grabVideoCanvas();
 
-    freezeEl.width = videoEl.videoWidth;
-    freezeEl.height = videoEl.videoHeight;
+    if (!source) return;
+
+    freezeEl.width = source.width;
+    freezeEl.height = source.height;
 
     var context = freezeEl.getContext("2d");
 
     if (!context) return;
 
-    context.drawImage(videoEl, 0, 0);
+    context.drawImage(source, 0, 0);
     freezeEl.classList.add("visible");
 
     window.setTimeout(function () {
@@ -818,12 +837,18 @@ main{padding:10px;max-width:720px;margin:0 auto}
     if (!width || !height) return null;
 
     var canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
+    var swap = viewRotation === 90 || viewRotation === 270;
+
+    canvas.width = swap ? height : width;
+    canvas.height = swap ? width : height;
 
     var context = canvas.getContext("2d", { willReadFrequently: true });
 
-    context.drawImage(videoEl, 0, 0, width, height);
+    context.save();
+    context.translate(canvas.width / 2, canvas.height / 2);
+    context.rotate(viewRotation * Math.PI / 180);
+    context.drawImage(videoEl, -width / 2, -height / 2, width, height);
+    context.restore();
 
     return canvas;
   }
@@ -846,7 +871,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
 
       context.putImageData(image, 0, 0);
     } catch (error) {
-      // If pixel access is unavailable, return the original canvas.
+      // Non-critical.
     }
 
     return canvas;
@@ -868,17 +893,14 @@ main{padding:10px;max-width:720px;margin:0 auto}
     sourceY = Math.max(0, Math.min(source.height - cropHeight, sourceY));
 
     var swap = rotation === 90 || rotation === 270;
-    var outputWidth = swap ? cropHeight : cropWidth;
-    var outputHeight = swap ? cropWidth : cropHeight;
-
     var canvas = document.createElement("canvas");
-    canvas.width = outputWidth;
-    canvas.height = outputHeight;
+    canvas.width = swap ? cropHeight : cropWidth;
+    canvas.height = swap ? cropWidth : cropHeight;
 
     var context = canvas.getContext("2d", { willReadFrequently: true });
 
     context.save();
-    context.translate(outputWidth / 2, outputHeight / 2);
+    context.translate(canvas.width / 2, canvas.height / 2);
     context.rotate(rotation * Math.PI / 180);
     context.drawImage(source, sourceX, sourceY, cropWidth, cropHeight, -cropWidth / 2, -cropHeight / 2, cropWidth, cropHeight);
     context.restore();
@@ -894,6 +916,170 @@ main{padding:10px;max-width:720px;margin:0 auto}
     } catch (error) {
       return null;
     }
+  }
+
+  function loadOpenCv() {
+    if (window.cv && window.cv.Mat) return Promise.resolve(window.cv);
+
+    if (!openCvPromise) {
+      openCvPromise = new Promise(function (resolve, reject) {
+        if (!document.querySelector("script[data-opencv]")) {
+          var script = document.createElement("script");
+
+          script.src = "https://docs.opencv.org/4.10.0/opencv.js";
+          script.async = true;
+          script.dataset.opencv = "1";
+          document.head.appendChild(script);
+        }
+
+        var started = Date.now();
+
+        (function waitForCv() {
+          if (window.cv && window.cv.Mat) {
+            resolve(window.cv);
+            return;
+          }
+
+          if (Date.now() - started > 30000) {
+            openCvPromise = null;
+            reject(new Error("OpenCV failed to load."));
+            return;
+          }
+
+          window.setTimeout(waitForCv, 250);
+        })();
+      });
+    }
+
+    return openCvPromise;
+  }
+
+  function orderQuad(points) {
+    var copy = points.slice();
+
+    copy.sort(function (a, b) { return (a.x + a.y) - (b.x + b.y); });
+    var topLeft = copy[0];
+    var bottomRight = copy[3];
+
+    var remaining = [copy[1], copy[2]];
+
+    remaining.sort(function (a, b) { return (a.y - a.x) - (b.y - b.x); });
+    var topRight = remaining[0];
+    var bottomLeft = remaining[1];
+
+    return [topLeft, topRight, bottomRight, bottomLeft];
+  }
+
+  function perspectiveCanvases(source) {
+    var cv = window.cv;
+    var results = [];
+
+    var src = cv.imread(source);
+    var gray = new cv.Mat();
+    var binary = new cv.Mat();
+    var contours = new cv.MatVector();
+    var hierarchy = new cv.Mat();
+
+    try {
+      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+      cv.threshold(gray, binary, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+      cv.findContours(binary, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+      var frameArea = src.rows * src.cols;
+      var candidates = [];
+
+      for (var i = 0; i < contours.size(); i++) {
+        var contour = contours.get(i);
+        var area = cv.contourArea(contour);
+
+        if (area < frameArea * 0.02) continue;
+
+        var perimeter = cv.arcLength(contour, true);
+        var approx = new cv.Mat();
+
+        cv.approxPolyDP(contour, approx, 0.02 * perimeter, true);
+
+        if (approx.rows === 4 && cv.isContourConvex(approx)) {
+          var points = [];
+
+          for (var p = 0; p < 4; p++) {
+            points.push({
+              x: approx.data32S[p * 2],
+              y: approx.data32S[p * 2 + 1]
+            });
+          }
+
+          candidates.push({ area: area, points: orderQuad(points) });
+        }
+
+        approx.delete();
+      }
+
+      candidates.sort(function (a, b) { return b.area - a.area; });
+      candidates = candidates.slice(0, 3);
+
+      candidates.forEach(function (candidate) {
+        var pts = candidate.points;
+
+        function distance(a, b) {
+          return Math.hypot(a.x - b.x, a.y - b.y);
+        }
+
+        var topWidth = distance(pts[0], pts[1]);
+        var bottomWidth = distance(pts[3], pts[2]);
+        var leftHeight = distance(pts[0], pts[3]);
+        var rightHeight = distance(pts[1], pts[2]);
+
+        var outWidth = Math.max(120, Math.round(Math.max(topWidth, bottomWidth)));
+        var outHeight = Math.max(120, Math.round(Math.max(leftHeight, rightHeight)));
+
+        var scale = Math.min(3, 1200 / Math.max(outWidth, outHeight));
+
+        outWidth = Math.max(120, Math.round(outWidth * scale));
+        outHeight = Math.max(120, Math.round(outHeight * scale));
+
+        var srcMat = cv.matFromArray(4, 1, cv.CV_32FC2, [
+          pts[0].x, pts[0].y,
+          pts[1].x, pts[1].y,
+          pts[2].x, pts[2].y,
+          pts[3].x, pts[3].y
+        ]);
+
+        var dstMat = cv.matFromArray(4, 1, cv.CV_32FC2, [
+          0, 0,
+          outWidth, 0,
+          outWidth, outHeight,
+          0, outHeight
+        ]);
+
+        var transform = cv.getPerspectiveTransform(srcMat, dstMat);
+        var warped = new cv.Mat();
+
+        cv.warpPerspective(src, warped, transform, new cv.Size(outWidth, outHeight));
+
+        var canvas = document.createElement("canvas");
+
+        canvas.width = outWidth;
+        canvas.height = outHeight;
+
+        cv.imshow(canvas, warped);
+
+        results.push(canvas);
+
+        srcMat.delete();
+        dstMat.delete();
+        transform.delete();
+        warped.delete();
+      });
+    } finally {
+      src.delete();
+      gray.delete();
+      binary.delete();
+      contours.delete();
+      hierarchy.delete();
+    }
+
+    return results;
   }
 
   async function forceScan(event) {
@@ -941,16 +1127,22 @@ main{padding:10px;max-width:720px;margin:0 auto}
       }
     }
 
+    var angles = [0, -8, 8, -16, 16];
     var variants = [
       { cropScale: 1, rotation: 0, enhance: false },
       { cropScale: 1, rotation: 0, enhance: true },
       { cropScale: 0.65, rotation: 0, enhance: false },
       { cropScale: 0.45, centreX: centreX, centreY: centreY, rotation: 0, enhance: false },
-      { cropScale: 0.45, centreX: centreX, centreY: centreY, rotation: 0, enhance: true },
-      { cropScale: 1, rotation: 90, enhance: false },
-      { cropScale: 1, rotation: 180, enhance: false },
-      { cropScale: 1, rotation: 270, enhance: false }
+      { cropScale: 0.45, centreX: centreX, centreY: centreY, rotation: 0, enhance: true }
     ];
+
+    angles.forEach(function (angle) {
+      variants.push({ cropScale: 1, rotation: angle, enhance: false });
+    });
+
+    [90, 180, 270].forEach(function (angle) {
+      variants.push({ cropScale: 1, rotation: angle, enhance: false });
+    });
 
     var found = null;
 
@@ -967,6 +1159,32 @@ main{padding:10px;max-width:720px;margin:0 auto}
       await new Promise(function (resolve) {
         window.setTimeout(resolve, 10);
       });
+    }
+
+    if (!found) {
+      setStatus("Looking for barcode shape…");
+
+      try {
+        await loadOpenCv();
+        var warped = perspectiveCanvases(source);
+
+        for (var w = 0; w < warped.length && !found; w++) {
+          var direct = decodeHardCanvas(warped[w]);
+
+          if (direct && typeof direct.getText === "function" && direct.getText()) {
+            found = direct.getText();
+            break;
+          }
+
+          var enhanced = decodeHardCanvas(enhanceCanvas(warped[w]));
+
+          if (enhanced && typeof enhanced.getText === "function" && enhanced.getText()) {
+            found = enhanced.getText();
+          }
+        }
+      } catch (error) {
+        // Perspective assist is optional; continue to the failure path.
+      }
     }
 
     hardBusy = false;
@@ -987,6 +1205,90 @@ main{padding:10px;max-width:720px;margin:0 auto}
     vibrate([120, 70, 120]);
     badFlash();
     setStatus("No barcode found. Try zoom, flash, another angle, or OCR.", "warning");
+  }
+
+  function applyViewRotation() {
+    cameraCard.classList.remove("rot-90", "rot-180", "rot-270");
+
+    if (viewRotation) {
+      cameraCard.classList.add("rot-" + viewRotation);
+    }
+
+    rotButton.classList.toggle("active", viewRotation !== 0);
+  }
+
+  function rotateView() {
+    if (!cameraOn) {
+      setStatus("Start the camera first.", "error");
+      return;
+    }
+
+    viewRotation = (viewRotation + 90) % 360;
+    applyViewRotation();
+    setStatus("Camera view rotated " + viewRotation + "°.");
+  }
+
+  function rotateCrop() {
+    if (!cropImage) return;
+
+    var canvas = document.createElement("canvas");
+    var swap = cropRotation === 90 || cropRotation === 270;
+
+    canvas.width = swap ? cropImage.naturalHeight : cropImage.naturalWidth;
+    canvas.height = swap ? cropImage.naturalWidth : cropImage.naturalHeight;
+
+    var context = canvas.getContext("2d");
+
+    context.translate(canvas.width / 2, canvas.height / 2);
+    context.rotate(Math.PI / 2);
+    context.drawImage(cropImage, -cropImage.naturalWidth / 2, -cropImage.naturalHeight / 2);
+
+    cropRotation = (cropRotation + 90) % 360;
+    cropImage = canvas;
+    cropImg.src = canvas.toDataURL("image/jpeg", 0.95);
+
+    cropStart = null;
+    cropRect = null;
+    cropBox.style.display = "none";
+
+    setStatus("Crop rotated 90°. Drag around the Asset ID again.");
+  }
+
+  function toggleDual() {
+    dualMode = !dualMode;
+
+    dualButton.classList.toggle("active", dualMode);
+
+    if (dualMode) {
+      startDualOcr();
+      setStatus("Dual mode on: barcode and OCR are both active.", "success");
+    } else {
+      stopDualOcr();
+      setStatus("Dual mode off.");
+    }
+  }
+
+  function startDualOcr() {
+    stopDualOcr();
+
+    dualTimer = window.setInterval(function () {
+      if (!cameraOn || !dualMode || ocrBusy || hardBusy) return;
+
+      var source = grabVideoCanvas();
+
+      if (!source) return;
+
+      var canvas = makeVariantCanvas(source, { cropScale: 0.7, rotation: 0, enhance: true });
+
+      runOcr(canvas, true);
+    }, 3000);
+  }
+
+  function stopDualOcr() {
+    if (dualTimer) {
+      window.clearInterval(dualTimer);
+      dualTimer = null;
+    }
   }
 
   function makeReader() {
@@ -1318,6 +1620,11 @@ main{padding:10px;max-width:720px;margin:0 auto}
     hardBusy = false;
     hardButton.disabled = false;
     cameraCard.classList.remove("hard-active");
+    stopDualOcr();
+    dualMode = false;
+    dualButton.classList.remove("active");
+    viewRotation = 0;
+    applyViewRotation();
     zoomCaps = null;
     zoom = 1;
 
@@ -1428,8 +1735,8 @@ main{padding:10px;max-width:720px;margin:0 auto}
       return;
     }
 
-    if (!/^M\d{5}$/.test(value) && !/^R\d{8}$/.test(value)) {
-      setStatus("Asset ID must be M12345 or R12345678.", "error");
+    if (!/^[A-Z]\d{5}$/.test(value) && !/^R\d{8}$/.test(value)) {
+      setStatus("Asset ID must be A12345 or R12345678.", "error");
       return;
     }
 
@@ -1442,7 +1749,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
   function assetCandidates(text) {
     if (!text) return [];
 
-    var matches = text.match(/\b[MR]\d{5,8}\b/gi);
+    var matches = text.match(/\b[A-Z]\d{5,8}\b/gi);
 
     if (!matches) return [];
 
@@ -1451,8 +1758,14 @@ main{padding:10px;max-width:720px;margin:0 auto}
     matches.forEach(function (match) {
       var clean = match.toUpperCase();
 
-      if ((/^M\d{5}$/.test(clean) || /^R\d{8}$/.test(clean)) && valid.indexOf(clean) === -1) {
-        valid.push(clean);
+      if (!/^[A-Z]\d{5}$/.test(clean) && !/^R\d{8}$/.test(clean)) return;
+
+      if (valid.indexOf(clean) === -1) valid.push(clean);
+
+      if (/^R00[01]\d{5}$/.test(clean)) {
+        var alternative = clean.slice(0, 3) + (clean.charAt(3) === "0" ? "1" : "0") + clean.slice(4);
+
+        if (valid.indexOf(alternative) === -1) valid.push(alternative);
       }
     });
 
@@ -1620,7 +1933,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
     runOcr(canvas);
   }
 
-  async function runOcr(image) {
+  async function runOcr(image, isDual) {
     if (ocrBusy) return;
 
     if (!image) {
@@ -1636,7 +1949,10 @@ main{padding:10px;max-width:720px;margin:0 auto}
     ocrBusy = true;
     ocrButton.disabled = true;
     ocrButton.textContent = "…";
-    setStatus("Reading cropped Asset ID…");
+
+    if (!isDual) {
+      setStatus("Reading cropped Asset ID…");
+    }
 
     try {
       var worker = await getWorker();
@@ -1645,7 +1961,10 @@ main{padding:10px;max-width:720px;margin:0 auto}
       var candidates = assetCandidates(text);
 
       if (!candidates.length) {
-        setStatus("No Asset ID found. Try a tighter crop or more light.", "error");
+        if (!isDual) {
+          setStatus("No Asset ID found. Try a tighter crop or more light.", "error");
+        }
+
         return;
       }
 
@@ -1653,6 +1972,12 @@ main{padding:10px;max-width:720px;margin:0 auto}
         if (!addScan(candidates[0], "ocr")) {
           manualEl.value = candidates[0];
           manualEl.focus();
+
+          if (isDual) {
+            setStatus("OCR found " + candidates[0] + ", but it was not added.", "warning");
+          }
+        } else if (isDual) {
+          setStatus("Dual OCR added: " + candidates[0], "success");
         }
 
         return;
@@ -1721,6 +2046,9 @@ main{padding:10px;max-width:720px;margin:0 auto}
   cameraButton.addEventListener("click", switchCamera);
   guideButton.addEventListener("click", toggleGuide);
   hardButton.addEventListener("click", forceScan);
+  rotButton.addEventListener("click", rotateView);
+  dualButton.addEventListener("click", toggleDual);
+  cropRotate.addEventListener("click", rotateCrop);
   videoEl.addEventListener("click", forceScan);
   zoomInButton.addEventListener("click", zoomIn);
   zoomOutButton.addEventListener("click", zoomOut);
