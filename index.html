@@ -114,7 +114,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
 
 <header class="toolbar">
   <div class="toolbar-top">
-    <span class="version">v0.13</span>
+    <span class="version">v0.19</span>
     <span class="app-title">Barcode Scanner</span>
     <span></span>
   </div>
@@ -227,7 +227,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
 (function () {
   "use strict";
 
-  var APP_VERSION = "v0.18";
+  var APP_VERSION = "v0.19";
   var STORAGE_KEY = "barcode-scanner-scans-v1";
   var METADATA_KEY = "barcode-scanner-metadata-v1";
   var DUP_MS = 1500;
@@ -265,6 +265,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
   var scanTimer = null;
   var confirmBusy = false;
   var pendingScan = null;
+  var scanDb = null;
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -313,6 +314,8 @@ main{padding:10px;max-width:720px;margin:0 auto}
 
   var scans = loadScans();
   var meta = loadMetadata();
+
+  idbHydrate();
 
   window.onerror = function (message) {
     setStatus("App error: " + message, "error");
@@ -365,6 +368,8 @@ main{padding:10px;max-width:720px;margin:0 auto}
     } catch (error) {
       setStatus("Could not save scans locally.", "error");
     }
+
+    idbReplaceAll(scans);
   }
 
   function setStatus(message, type) {
@@ -961,6 +966,99 @@ main{padding:10px;max-width:720px;margin:0 auto}
     } catch (error) {
       return null;
     }
+  }
+
+  function openScanDb() {
+    return new Promise(function (resolve, reject) {
+      if (scanDb) {
+        resolve(scanDb);
+        return;
+      }
+
+      if (!window.indexedDB) {
+        reject(new Error("IndexedDB unavailable"));
+        return;
+      }
+
+      var request = indexedDB.open("barcode-scanner", 1);
+
+      request.onupgradeneeded = function (event) {
+        var db = event.target.result;
+
+        if (!db.objectStoreNames.contains("scans")) {
+          db.createObjectStore("scans", { keyPath: "timestamp" });
+        }
+      };
+
+      request.onsuccess = function (event) {
+        scanDb = event.target.result;
+        resolve(scanDb);
+      };
+
+      request.onerror = function () {
+        reject(request.error || new Error("Could not open IndexedDB"));
+      };
+    });
+  }
+
+  function idbReplaceAll(records) {
+    return openScanDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var transaction = db.transaction("scans", "readwrite");
+        var store = transaction.objectStore("scans");
+
+        store.clear();
+
+        records.forEach(function (record) {
+          store.put({
+            barcode: record.barcode,
+            timestamp: record.timestamp
+          });
+        });
+
+        transaction.oncomplete = function () { resolve(); };
+        transaction.onerror = function () { reject(transaction.error); };
+      });
+    }).catch(function () {
+      // IndexedDB is a durability mirror; localStorage remains the primary UI store.
+    });
+  }
+
+  function idbHydrate() {
+    return openScanDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var transaction = db.transaction("scans", "readonly");
+        var request = transaction.objectStore("scans").getAll();
+
+        request.onsuccess = function () { resolve(request.result || []); };
+        request.onerror = function () { reject(request.error); };
+      });
+    }).then(function (records) {
+      var merged = scans.slice();
+      var known = {};
+
+      scans.forEach(function (scan) { known[scan.barcode] = true; });
+
+      records.forEach(function (record) {
+        if (!record || !record.barcode || known[record.barcode]) return;
+
+        known[record.barcode] = true;
+        merged.push({
+          barcode: record.barcode,
+          timestamp: record.timestamp
+        });
+      });
+
+      merged.sort(function (a, b) { return b.timestamp - a.timestamp; });
+
+      if (merged.length !== scans.length) {
+        scans = merged;
+        saveScans();
+        updateUi();
+      }
+    }).catch(function () {
+      // Non-critical.
+    });
   }
 
   function loadOpenCv() {
@@ -1615,7 +1713,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
     }
   }
 
-  function startCamera(preferredId) {
+  async function startCamera(preferredId) {
     if (cameraOn) {
       stopCamera();
       return;
@@ -1659,26 +1757,26 @@ main{padding:10px;max-width:720px;margin:0 auto}
       };
     }
 
-    reader.decodeFromConstraints(
-      { video: video, audio: false },
-      videoEl,
-      function (result, error, streamControls) {
-        if (streamControls) controls = streamControls;
+    try {
+      var stream = await navigator.mediaDevices.getUserMedia({ video: video, audio: false });
 
-        if (result) onResult(result);
-      }
-    ).then(function () {
+      cameraStream = stream;
+      videoEl.srcObject = stream;
+
+      await videoEl.play();
+
       cameraOn = true;
       deviceId = preferredId || deviceId;
       lastGoodScan = Date.now();
 
       hideOverlay();
       setCameraButton(true);
-      setStatus("Camera running. Use ＋ to zoom.");
+      setStatus("Camera running. Aim the barcode at the centre band.");
 
       setupControls();
       startReminder();
-    }).catch(function (error) {
+      startScanLoop();
+    } catch (error) {
       cameraOn = false;
       setCameraButton(false);
       showError("Camera unavailable");
@@ -1704,14 +1802,15 @@ main{padding:10px;max-width:720px;margin:0 auto}
         reader = null;
       }
 
-      controls = null;
+      cameraStream = null;
       track = null;
-    });
+    }
   }
 
   function stopCamera() {
-    if (!reader || !cameraOn) return;
+    if (!cameraOn) return;
 
+    stopScanLoop();
     stopReminder();
 
     if (torchOn && track) {
@@ -1724,27 +1823,54 @@ main{padding:10px;max-width:720px;margin:0 auto}
       }
 
       torchOn = false;
-      torchButton.classList.remove("torch-on");
     }
 
-    try {
-      if (controls && controls.stop) controls.stop();
-    } catch (error) {
-      // Ignore.
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(function (streamTrack) {
+        try {
+          streamTrack.stop();
+        } catch (error) {
+          // Ignore.
+        }
+      });
     }
 
-    try {
-      reader.reset();
-    } catch (error) {
-      // Ignore.
+    if (reader) {
+      try {
+        reader.reset();
+      } catch (readerCleanupError) {
+        // Ignore.
+      }
+    }
+
+    if (hardReader) {
+      try {
+        hardReader.reset();
+      } catch (hardCleanupError) {
+        // Ignore.
+      }
+
+      hardReader = null;
     }
 
     cameraOn = false;
-    controls = null;
-    track = null;
+    cameraStream = null;
+    videoEl.srcObject = null;
     reader = null;
+    track = null;
     zoomCaps = null;
     zoom = 1;
+
+    hardBusy = false;
+    hardButton.disabled = false;
+    cameraCard.classList.remove("hard-active");
+
+    stopDualOcr();
+    dualMode = false;
+    dualButton.classList.remove("active");
+
+    viewRotation = 0;
+    applyViewRotation();
 
     setCameraButton(false);
     torchButton.disabled = true;
@@ -1754,7 +1880,7 @@ main{padding:10px;max-width:720px;margin:0 auto}
     setStatus("Camera stopped.");
   }
 
-  async function switchCamera() {
+async function switchCamera() {
     if (!cameraOn || devices.length < 2) return;
 
     var current = devices.findIndex(function (device) {
